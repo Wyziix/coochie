@@ -109,6 +109,53 @@ export type Database = {
         };
         Relationships: [];
       };
+      templates: {
+        Row: {
+          id: string;
+          owner_id: string | null;
+          name: string;
+          notes: string | null;
+          program: string | null;
+          position: number;
+          is_hidden: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      template_exercises: {
+        Row: {
+          id: string;
+          template_id: string;
+          exercise_id: string;
+          position: number;
+          target_sets: number;
+          target_reps_min: number | null;
+          target_reps_max: number | null;
+          target_duration_seconds: number | null;
+          rest_seconds: number | null;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [
+          {
+            foreignKeyName: 'template_exercises_template_id_fkey';
+            columns: ['template_id'];
+            isOneToOne: false;
+            referencedRelation: 'templates';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'template_exercises_exercise_id_fkey';
+            columns: ['exercise_id'];
+            isOneToOne: false;
+            referencedRelation: 'exercises';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       user_exercise_settings: {
         Row: {
           user_id: string;
@@ -136,6 +183,7 @@ export type Database = {
           duration_seconds: number;
           total_volume_kg: number;
           notes: string | null;
+          template_id: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -207,6 +255,24 @@ export type Database = {
         Args: { p_id: string; p_hidden: boolean };
         Returns: Database['public']['Tables']['exercises']['Row'];
       };
+      save_template: {
+        Args: { p_id: string | null; p_template: Json; p_exercises: Json };
+        Returns: Database['public']['Tables']['templates']['Row'];
+      };
+      template_from_workout: {
+        Args: { p_workout_id: string; p_name: string };
+        Returns: Database['public']['Tables']['templates']['Row'];
+      };
+      admin_save_template: {
+        Args: { p_id: string | null; p_template: Json; p_exercises: Json };
+        Returns: Database['public']['Tables']['templates']['Row'];
+      };
+      admin_set_template_hidden: {
+        Args: { p_id: string; p_hidden: boolean };
+        Returns: Database['public']['Tables']['templates']['Row'];
+      };
+      admin_delete_template: { Args: { p_id: string }; Returns: undefined };
+      delete_workout: { Args: { p_id: string }; Returns: undefined };
       save_workout: {
         Args: { p_workout: Json; p_sets: Json };
         Returns: Database['public']['Tables']['workouts']['Row'];

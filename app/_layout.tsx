@@ -80,6 +80,10 @@ function RootNavigator() {
         />
         <Stack.Screen name="exercises/new" options={{ headerShown: true, title: 'New exercise' }} />
         <Stack.Screen name="exercises/[id]" options={{ headerShown: true, title: 'Exercise' }} />
+        <Stack.Screen name="workouts/edit" options={{ headerShown: true, title: 'Edit workout' }} />
+        <Stack.Screen name="templates/[id]" options={{ headerShown: true, title: 'Template' }} />
+        <Stack.Screen name="templates/edit" options={{ headerShown: true, title: 'Template' }} />
+        <Stack.Screen name="history" options={{ headerShown: true, title: 'History' }} />
       </Stack.Protected>
     </Stack>
   );

@@ -12,6 +12,8 @@ export default function AdminLayout() {
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="exercises" options={{ title: 'Exercise library' }} />
       <Stack.Screen name="exercise" options={{ title: 'Exercise' }} />
+      <Stack.Screen name="templates" options={{ title: 'Ready-made templates' }} />
+      <Stack.Screen name="template" options={{ title: 'Template' }} />
     </Stack>
   );
 }

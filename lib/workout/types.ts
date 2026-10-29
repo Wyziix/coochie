@@ -17,6 +17,13 @@ export type ActiveSet = {
   done: boolean;
 };
 
+export type ExerciseTarget = {
+  sets: number;
+  repsMin: number | null;
+  repsMax: number | null;
+  durationSeconds: number | null;
+};
+
 export type ActiveExercise = {
   key: string;
   exerciseId: string;
@@ -24,6 +31,8 @@ export type ActiveExercise = {
   type: ExerciseType;
   restSeconds: number;
   sets: ActiveSet[];
+  /** From the template the workout was started from. */
+  target?: ExerciseTarget | null;
 };
 
 export type ActiveWorkout = {
@@ -32,6 +41,7 @@ export type ActiveWorkout = {
   startedAt: string;
   units: WeightUnit;
   exercises: ActiveExercise[];
+  templateId?: string | null;
 };
 
 export type RestTimer = {

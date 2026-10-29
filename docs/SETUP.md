@@ -89,6 +89,14 @@ where p.role = 'admin';
 select count(*) from public.exercises where owner_id is null;  -- 106
 ```
 
+### Stage 3 migration
+
+- `20261031000000_templates_history.sql`: templates + 8 ready-made ones, admin template functions, `template_id` on workouts, and workout writes moved to server functions only (`save_workout` v2, `delete_workout`)
+
+```sql
+select program, name from public.templates where owner_id is null order by program, position;  -- 8 rows
+```
+
 ## 6. Enable the custom access token hook
 
 This puts `user_role` (`user` / `admin`) into every login token.

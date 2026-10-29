@@ -9,10 +9,10 @@ import { useTheme } from '@/hooks/useTheme';
 import type { LastSet } from '@/lib/api/exercises';
 import { confirm } from '@/lib/confirm';
 import { tapFeedback } from '@/lib/platform/feedback';
-import { formatRest, REST_OPTIONS } from '@/lib/workout/format';
+import { formatDuration, formatRest, formatTarget, REST_OPTIONS } from '@/lib/workout/format';
 import { fieldsFor, isSetComplete, placeholderFrom, withPlaceholders } from '@/lib/workout/sets';
 import type { ActiveExercise } from '@/lib/workout/types';
-import { useWorkoutStore } from '@/stores/workoutStore';
+import { useWorkoutStoreContext } from '@/stores/workoutStore';
 
 import { SetOptionsSheet } from './SetOptionsSheet';
 import { SetRow } from './SetRow';
@@ -25,8 +25,9 @@ type Props = {
 
 export function ExerciseCard({ exercise, unit, lastSets = [] }: Props) {
   const theme = useTheme();
-  const { updateSet, addSet, removeSet, removeExercise, setExerciseRest } =
-    useWorkoutStore.getState();
+  const { store, mode } = useWorkoutStoreContext();
+  const { updateSet, addSet, removeSet, removeExercise, setExerciseRest } = store.getState();
+  const live = mode === 'live';
   const rest = useRestTimerControls();
   const saveRest = useSaveRestSetting();
   const [optionsFor, setOptionsFor] = useState<string | null>(null);
@@ -42,8 +43,14 @@ export function ExerciseCard({ exercise, unit, lastSets = [] }: Props) {
     const above = exercise.sets[i - 1];
     return {
       weight: fromLast.weight || above?.weight || '',
-      reps: fromLast.reps || above?.reps || '',
-      duration: fromLast.duration || above?.duration || '',
+      reps:
+        fromLast.reps ||
+        above?.reps ||
+        (exercise.target?.repsMin ? String(exercise.target.repsMin) : ''),
+      duration:
+        fromLast.duration ||
+        above?.duration ||
+        (exercise.target?.durationSeconds ? formatDuration(exercise.target.durationSeconds) : ''),
       distance: fromLast.distance || above?.distance || '',
     };
   });
@@ -64,7 +71,8 @@ export function ExerciseCard({ exercise, unit, lastSets = [] }: Props) {
     });
     updateSet(exercise.key, set.id, { ...filled, done: true });
     tapFeedback();
-    rest.start(exercise.key, exercise.restSeconds, exercise.name);
+    // Editing a past workout: no rest timer.
+    if (live) rest.start(exercise.key, exercise.restSeconds, exercise.name);
   }
 
   function copyPrevious(index: number) {
@@ -96,7 +104,12 @@ export function ExerciseCard({ exercise, unit, lastSets = [] }: Props) {
             {exercise.name}
           </Text>
           <Text variant="caption" color="textMuted">
-            Rest {formatRest(exercise.restSeconds)}
+            {[
+              exercise.target ? `Target ${formatTarget(exercise.target)}` : null,
+              live ? `Rest ${formatRest(exercise.restSeconds)}` : null,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
           </Text>
         </View>
         <IconButton
@@ -110,9 +123,11 @@ export function ExerciseCard({ exercise, unit, lastSets = [] }: Props) {
         <Text variant="caption" color="textMuted" style={styles.setCol}>
           Set
         </Text>
-        <Text variant="caption" color="textMuted" style={styles.prevCol}>
-          Previous
-        </Text>
+        {live ? (
+          <Text variant="caption" color="textMuted" style={styles.prevCol}>
+            Previous
+          </Text>
+        ) : null}
         {f.weight ? (
           <Text variant="caption" color="textMuted" style={styles.cell}>
             {exercise.type === 'bodyweight' ? `+${unit}` : unit}
@@ -150,6 +165,7 @@ export function ExerciseCard({ exercise, unit, lastSets = [] }: Props) {
           onToggleDone={() => toggleDone(i)}
           onOpenOptions={() => setOptionsFor(set.id)}
           onUsePrevious={() => copyPrevious(i)}
+          showPrevious={live}
         />
       ))}
 
@@ -167,20 +183,24 @@ export function ExerciseCard({ exercise, unit, lastSets = [] }: Props) {
       />
 
       <BottomSheet visible={menuOpen} onClose={() => setMenuOpen(false)} title={exercise.name}>
-        <Text variant="label" color="textMuted">
-          Rest timer (saved for next time)
-        </Text>
-        <View style={[styles.wrap, { gap: theme.spacing.sm }]}>
-          {REST_OPTIONS.map((seconds) => (
-            <Chip
-              key={seconds}
-              label={formatRest(seconds)}
-              selected={exercise.restSeconds === seconds}
-              accessibilityRole="radio"
-              onPress={() => chooseRest(seconds)}
-            />
-          ))}
-        </View>
+        {live ? (
+          <>
+            <Text variant="label" color="textMuted">
+              Rest timer (saved for next time)
+            </Text>
+            <View style={[styles.wrap, { gap: theme.spacing.sm }]}>
+              {REST_OPTIONS.map((seconds) => (
+                <Chip
+                  key={seconds}
+                  label={formatRest(seconds)}
+                  selected={exercise.restSeconds === seconds}
+                  accessibilityRole="radio"
+                  onPress={() => chooseRest(seconds)}
+                />
+              ))}
+            </View>
+          </>
+        ) : null}
         <Button
           title="How to do it"
           variant="secondary"

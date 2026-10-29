@@ -1,18 +1,23 @@
 import { renderRouter, screen, waitFor } from 'expo-router/testing-library';
 import path from 'path';
 
-import { useWorkoutStore } from '@/stores/workoutStore';
+import { draftFromTemplate } from '@/lib/templates/draft';
+import type { Template } from '@/lib/api/templates';
+import { useTemplateDraftStore } from '@/stores/templateDraftStore';
+import { useEditWorkoutStore, useWorkoutStore } from '@/stores/workoutStore';
 import {
   exercisesState,
   fakeProfile,
   fakeSession,
   onboardedProfile,
   resetBackend,
+  templatesState,
 } from '@/test-utils/backend';
 
 jest.mock('@/lib/env', () => require('@/test-utils/backend').envMock);
 jest.mock('@/lib/supabase', () => require('@/test-utils/backend').supabaseMock);
 jest.mock('@/lib/api/profiles', () => require('@/test-utils/backend').profilesMock);
+jest.mock('@/lib/api/templates', () => require('@/test-utils/backend').templatesMock);
 jest.mock('@/lib/api/exercises', () => require('@/test-utils/backend').exercisesMock);
 jest.mock('@/lib/api/workouts', () => require('@/test-utils/backend').workoutsMock);
 
@@ -37,6 +42,13 @@ const signedInRoutes = [
   '/exercises/pick',
   '/exercises/new',
   '/exercises/ex-bench',
+  '/history',
+  '/templates/tpl-push',
+  '/templates/tpl-mine',
+  '/templates/edit',
+  '/workouts/edit',
+  '/admin/templates',
+  '/admin/template?id=tpl-push',
 ];
 
 describe('every screen renders', () => {

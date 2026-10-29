@@ -162,6 +162,40 @@ Checks: typecheck, lint, prettier, 83 Jest tests, 72 DB checks (`npm run test:db
 
 Verified in the dev server (where React prints nesting warnings) at 390 px and 1440 px: no console errors, chips 36 px tall with no overlap, column centered, missing-table and offline messages correct.
 
+## Stage 3 – Templates and history
+
+Built:
+
+- **Database** (`20261031000000_templates_history.sql`):
+  - `templates` + `template_exercises` (order, target sets, rep range or time, optional rest). `owner_id` null = ready-made. RLS: users read ready-made (not hidden) + their own; admins also see hidden ones. No direct inserts/updates: writes go through `save_template` (own) and `admin_save_template` / `admin_set_template_hidden` / `admin_delete_template` (admin check + `admin_actions` log). Both validate: 1–30 exercises, 1–20 sets, reps 1–100 with min ≤ max, and only exercises the owner may use
+  - `template_from_workout(workout, name)`: copies a finished workout (exercises in order, working-set count, rep range done)
+  - 8 ready-made templates: **Push / Pull / Legs**, **Upper / Lower**, **Full Body**, **5×5 A / B**
+  - `workouts.template_id` (kept when editing, set to null if the template is deleted)
+- **Server-only workout writes**: clients can now only _read_ `workouts` / `workout_sets`. `save_workout` (finish and edit) and `delete_workout` are the only write paths; they check ownership, recompute duration and volume, ignore any totals the app sends, reject future dates and other users' custom exercises, and call `after_workout_change()`. That function is a no-op today; Stage 4 (PRs) and Stage 8 (points) recompute there, so editing or deleting a past workout keeps them consistent
+- **Workout tab**: workout in progress, Start empty, **My templates** and the ready-made programs, each with a **Start** button (one tap), recent workouts + History
+- **Templates**: detail page (Start, Edit, Delete for yours; Copy for ready-made), editor with the same multi-select picker, sets −/+, rep range or time, move up/down, remove. Starting a template asks first if a workout is already running. Targets show as hints ("Target 4 × 6–8") and fill empty reps when you tick a set
+- **Save a finished workout as a template** (from its summary page)
+- **History** (`/history`): list grouped by month (loads 20 at a time), **Calendar** view (Monday first, dot on training days, tap a day to see its workouts, ← → months). Cells are flexible: 48 px at 390 px, 77×64 px in the 600 px web column
+- **Edit a past workout**: name, date, start time, duration, sets (add / remove / change, add exercises). Same set UI as logging, without rest timer or "previous". Saved through `save_workout`, so the server recalculates. **Delete** with confirmation
+- **Admin → Templates**: ready-made templates by program (hidden ones too), add, edit (incl. program and order), hide/show, delete, all logged
+
+Refactor: the workout store is now one shared definition used by the live workout (persisted) and the edit screen (in memory), handed to the set UI through React context.
+
+Checks: typecheck, lint, prettier, 147 Jest tests (incl. no-nested-pressables on every screen, new routes added to the smoke test), 115 DB checks. Web tested in the dev server at 390 px and 1440 px against a fake backend using the real seeded templates: start from template, finish, save as template, build a template with the picker, history list + calendar, edit (volume 800 kg and 1h 15m recomputed), delete, admin hide. No console errors.
+
+### Decisions
+
+- Dropped the direct write policies on `workouts` / `workout_sets` (Stage 2 allowed them). Otherwise a client could store its own volume and later points
+- Ready-made templates can't be edited by users; "Copy to my templates" makes an editable copy
+- Deleting a template keeps past workouts (link set to null). Hiding a ready-made template is reversible; deleting isn't
+- Edit form uses plain text fields for date/time (YYYY-MM-DD, HH:MM) so it works the same on web and Android without a date-picker library
+- The calendar groups by local date (a 23:30 workout belongs to that day)
+
+### Known issues
+
+- Reloading the page on the template editor or the edit-workout screen goes back (the draft is in memory). Finished workouts and templates are saved; only unsaved edits are lost
+- Rep targets fill empty reps when you tick a set (like last time's values do); change them before ticking if you did fewer
+
 ## Planned for Stage 13 (polish)
 
 - **Muscle map**: front and back SVG body diagram highlighting the muscles worked (primary darker, secondary lighter). Shown on exercise details, the workout summary, and the weekly overview on Home. Must work on web and native (react-native-svg)

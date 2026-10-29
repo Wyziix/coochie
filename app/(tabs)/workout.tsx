@@ -1,14 +1,20 @@
 import { router } from 'expo-router';
 import { View } from 'react-native';
 
-import { Button, Card, EmptyState, Header, Screen, Text } from '@/components/ui';
+import { TemplateCard } from '@/components/templates/TemplateCard';
+import { WorkoutRow } from '@/components/workouts/WorkoutRow';
+import { Button, Card, EmptyState, ErrorState, Header, Screen, Text } from '@/components/ui';
+import { useRestSettings } from '@/hooks/useExercises';
 import { useNow } from '@/hooks/useNow';
 import { useProfile } from '@/hooks/useProfile';
+import { useTemplateGroups } from '@/hooks/useTemplates';
 import { useTheme } from '@/hooks/useTheme';
 import { useRecentWorkouts } from '@/hooks/useWorkouts';
-import { formatWeight } from '@/lib/units';
-import { formatDuration, formatDurationShort } from '@/lib/workout/format';
-import { startEmptyWorkout } from '@/lib/workout/start';
+import type { Template } from '@/lib/api/templates';
+import { emptyDraft } from '@/lib/templates/draft';
+import { formatDuration } from '@/lib/workout/format';
+import { startEmptyWorkout, startTemplateWorkout } from '@/lib/workout/start';
+import { useTemplateDraftStore } from '@/stores/templateDraftStore';
 import { useWorkoutStore } from '@/stores/workoutStore';
 
 export default function WorkoutScreen() {
@@ -16,8 +22,14 @@ export default function WorkoutScreen() {
   const { data: profile } = useProfile();
   const workout = useWorkoutStore((s) => s.workout);
   const now = useNow(1000, workout !== null);
-  const recent = useRecentWorkouts();
+  const recent = useRecentWorkouts(3);
+  const templates = useTemplateGroups();
+  const { data: restSettings } = useRestSettings();
   const units = profile?.units ?? 'kg';
+
+  const start = (t: Template) => startTemplateWorkout(t, units, restSettings);
+  const open = (t: Template) => router.push({ pathname: '/templates/[id]', params: { id: t.id } });
+  const section = { gap: theme.spacing.sm } as const;
 
   return (
     <Screen scroll header={<Header title="Workout" />}>
@@ -33,31 +45,64 @@ export default function WorkoutScreen() {
           </Text>
           <Button title="Resume workout" onPress={() => router.push('/workouts/active')} />
         </Card>
-      ) : (
-        <Button title="Start empty workout" onPress={() => startEmptyWorkout(units)} fullWidth />
-      )}
+      ) : null}
 
-      <View style={{ gap: theme.spacing.sm }}>
-        <Text variant="heading">Recent</Text>
-        {recent.data?.length ? (
-          recent.data.map((w) => (
-            <Card
-              key={w.id}
-              onPress={() => router.push({ pathname: '/workouts/[id]', params: { id: w.id } })}
-              accessibilityLabel={`${w.name}, ${new Date(w.started_at).toLocaleDateString()}`}
-            >
-              <Text variant="label">{w.name}</Text>
-              <Text variant="caption" color="textMuted">
-                {new Date(w.started_at).toLocaleDateString(undefined, {
-                  weekday: 'short',
-                  day: 'numeric',
-                  month: 'short',
-                })}{' '}
-                · {formatDurationShort(w.duration_seconds)} · {w.set_count} sets ·{' '}
-                {formatWeight(w.total_volume_kg, units)}
-              </Text>
-            </Card>
+      <Button
+        title="Start empty workout"
+        variant={workout ? 'secondary' : 'primary'}
+        onPress={() => startEmptyWorkout(units)}
+        fullWidth
+      />
+
+      <View style={section}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Text variant="heading" style={{ flex: 1 }}>
+            My templates
+          </Text>
+          <Button
+            title="+ New"
+            variant="ghost"
+            onPress={() => {
+              useTemplateDraftStore.getState().load(emptyDraft());
+              router.push('/templates/edit');
+            }}
+          />
+        </View>
+        {templates.error ? (
+          <ErrorState error={templates.error} onRetry={() => templates.refetch()} />
+        ) : templates.mine.length ? (
+          templates.mine.map((t) => (
+            <TemplateCard key={t.id} template={t} onOpen={() => open(t)} onStart={() => start(t)} />
           ))
+        ) : templates.isPending ? null : (
+          <Text color="textMuted">
+            Build your own, copy a ready-made one, or save a finished workout as a template.
+          </Text>
+        )}
+      </View>
+
+      {templates.programs.map(({ program, templates: list }) => (
+        <View key={program} style={section}>
+          <Text variant="label" color="textMuted">
+            {program}
+          </Text>
+          {list.map((t) => (
+            <TemplateCard key={t.id} template={t} onOpen={() => open(t)} onStart={() => start(t)} />
+          ))}
+        </View>
+      ))}
+
+      <View style={section}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Text variant="heading" style={{ flex: 1 }}>
+            Recent
+          </Text>
+          <Button title="History" variant="ghost" onPress={() => router.push('/history')} />
+        </View>
+        {recent.error ? (
+          <ErrorState error={recent.error} onRetry={() => recent.refetch()} />
+        ) : recent.data?.length ? (
+          recent.data.map((w) => <WorkoutRow key={w.id} workout={w} unit={units} />)
         ) : recent.isPending ? null : (
           <EmptyState
             icon="barbell-outline"

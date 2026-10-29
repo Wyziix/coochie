@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { create } from 'zustand';
+import { createContext, useContext } from 'react';
+import { create, type StateCreator, type StoreApi, type UseBoundStore } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import type { Exercise } from '@/lib/api/exercises';
@@ -18,11 +19,13 @@ const emptySet = (copyFrom?: ActiveSet): ActiveSet => ({
   done: false,
 });
 
-type WorkoutState = {
+export type WorkoutState = {
   workout: ActiveWorkout | null;
   restTimer: RestTimer | null;
 
   start: (name: string, units: WeightUnit) => void;
+  /** Replace the whole workout (start from a template, or load a past one to edit). */
+  load: (workout: ActiveWorkout) => void;
   rename: (name: string) => void;
   discard: () => void;
 
@@ -50,94 +53,110 @@ const mapExercise = (
 ): ActiveWorkout | null =>
   workout && { ...workout, exercises: workout.exercises.map((e) => (e.key === key ? fn(e) : e)) };
 
+const workoutSlice: StateCreator<WorkoutState> = (set) => ({
+  workout: null,
+  restTimer: null,
+
+  start: (name, units) =>
+    set({
+      workout: { id: newId(), name, startedAt: new Date().toISOString(), units, exercises: [] },
+      restTimer: null,
+    }),
+  load: (workout) => set({ workout, restTimer: null }),
+  rename: (name) => set((s) => ({ workout: s.workout && { ...s.workout, name } })),
+  discard: () => set({ workout: null, restTimer: null }),
+
+  addExercises: (exercises, restFor, setCounts) =>
+    set((s) => {
+      if (!s.workout) return s;
+      const added = exercises.map((e, i): ActiveExercise => ({
+        key: newId(),
+        exerciseId: e.id,
+        name: e.name,
+        type: e.type,
+        restSeconds: restFor(e),
+        sets: Array.from({ length: Math.max(1, setCounts?.[i] ?? 1) }, () => emptySet()),
+      }));
+      return { workout: { ...s.workout, exercises: [...s.workout.exercises, ...added] } };
+    }),
+  removeExercise: (key) =>
+    set((s) => ({
+      workout: s.workout && {
+        ...s.workout,
+        exercises: s.workout.exercises.filter((e) => e.key !== key),
+      },
+      restTimer: s.restTimer?.exerciseKey === key ? null : s.restTimer,
+    })),
+  setExerciseRest: (key, seconds) =>
+    set((s) => ({
+      workout: mapExercise(s.workout, key, (e) => ({ ...e, restSeconds: seconds })),
+    })),
+
+  addSet: (exerciseKey) =>
+    set((s) => ({
+      workout: mapExercise(s.workout, exerciseKey, (e) => ({
+        ...e,
+        sets: [...e.sets, emptySet(e.sets.at(-1))],
+      })),
+    })),
+  updateSet: (exerciseKey, setId, patch) =>
+    set((s) => ({
+      workout: mapExercise(s.workout, exerciseKey, (e) => ({
+        ...e,
+        sets: e.sets.map((x) => (x.id === setId ? { ...x, ...patch } : x)),
+      })),
+    })),
+  removeSet: (exerciseKey, setId) =>
+    set((s) => ({
+      workout: mapExercise(s.workout, exerciseKey, (e) => ({
+        ...e,
+        sets: e.sets.filter((x) => x.id !== setId),
+      })),
+    })),
+
+  startRest: (exerciseKey, seconds, notificationId) =>
+    set({
+      restTimer: {
+        exerciseKey,
+        totalSeconds: seconds,
+        endsAt: Date.now() + seconds * 1000,
+        notificationId,
+      },
+    }),
+  setRestEnd: (endsAt, totalSeconds, notificationId) =>
+    set((s) => ({
+      restTimer: s.restTimer && { ...s.restTimer, endsAt, totalSeconds, notificationId },
+    })),
+  clearRest: () => set({ restTimer: null }),
+});
+
 /**
  * The workout in progress. Persisted (AsyncStorage on native, localStorage on
  * web), so it survives the app being closed or the page being reloaded.
  */
 export const useWorkoutStore = create<WorkoutState>()(
-  persist(
-    (set) => ({
-      workout: null,
-      restTimer: null,
-
-      start: (name, units) =>
-        set({
-          workout: { id: newId(), name, startedAt: new Date().toISOString(), units, exercises: [] },
-          restTimer: null,
-        }),
-      rename: (name) => set((s) => ({ workout: s.workout && { ...s.workout, name } })),
-      discard: () => set({ workout: null, restTimer: null }),
-
-      addExercises: (exercises, restFor, setCounts) =>
-        set((s) => {
-          if (!s.workout) return s;
-          const added = exercises.map((e, i): ActiveExercise => ({
-            key: newId(),
-            exerciseId: e.id,
-            name: e.name,
-            type: e.type,
-            restSeconds: restFor(e),
-            sets: Array.from({ length: Math.max(1, setCounts?.[i] ?? 1) }, () => emptySet()),
-          }));
-          return { workout: { ...s.workout, exercises: [...s.workout.exercises, ...added] } };
-        }),
-      removeExercise: (key) =>
-        set((s) => ({
-          workout: s.workout && {
-            ...s.workout,
-            exercises: s.workout.exercises.filter((e) => e.key !== key),
-          },
-          restTimer: s.restTimer?.exerciseKey === key ? null : s.restTimer,
-        })),
-      setExerciseRest: (key, seconds) =>
-        set((s) => ({
-          workout: mapExercise(s.workout, key, (e) => ({ ...e, restSeconds: seconds })),
-        })),
-
-      addSet: (exerciseKey) =>
-        set((s) => ({
-          workout: mapExercise(s.workout, exerciseKey, (e) => ({
-            ...e,
-            sets: [...e.sets, emptySet(e.sets.at(-1))],
-          })),
-        })),
-      updateSet: (exerciseKey, setId, patch) =>
-        set((s) => ({
-          workout: mapExercise(s.workout, exerciseKey, (e) => ({
-            ...e,
-            sets: e.sets.map((x) => (x.id === setId ? { ...x, ...patch } : x)),
-          })),
-        })),
-      removeSet: (exerciseKey, setId) =>
-        set((s) => ({
-          workout: mapExercise(s.workout, exerciseKey, (e) => ({
-            ...e,
-            sets: e.sets.filter((x) => x.id !== setId),
-          })),
-        })),
-
-      startRest: (exerciseKey, seconds, notificationId) =>
-        set({
-          restTimer: {
-            exerciseKey,
-            totalSeconds: seconds,
-            endsAt: Date.now() + seconds * 1000,
-            notificationId,
-          },
-        }),
-      setRestEnd: (endsAt, totalSeconds, notificationId) =>
-        set((s) => ({
-          restTimer: s.restTimer && { ...s.restTimer, endsAt, totalSeconds, notificationId },
-        })),
-      clearRest: () => set({ restTimer: null }),
-    }),
-    {
-      name: 'active-workout',
-      version: 1,
-      storage: createJSONStorage(() => AsyncStorage),
-      partialize: (s) => ({ workout: s.workout, restTimer: s.restTimer }),
-    },
-  ),
+  persist(workoutSlice, {
+    name: 'active-workout',
+    version: 1,
+    storage: createJSONStorage(() => AsyncStorage),
+    partialize: (s) => ({ workout: s.workout, restTimer: s.restTimer }),
+  }),
 );
+
+/** A past workout being edited. In memory only; saved through save_workout. */
+export const useEditWorkoutStore = create<WorkoutState>()(workoutSlice);
+
+export type WorkoutStore = UseBoundStore<StoreApi<WorkoutState>>;
+
+/**
+ * Lets the set-logging UI (ExerciseCard etc.) work on either store. "live"
+ * runs the rest timer and shows last time's sets; "edit" does neither.
+ */
+export const WorkoutStoreContext = createContext<{ store: WorkoutStore; mode: 'live' | 'edit' }>({
+  store: useWorkoutStore,
+  mode: 'live',
+});
+
+export const useWorkoutStoreContext = () => useContext(WorkoutStoreContext);
 
 export const useHasActiveWorkout = () => useWorkoutStore((s) => s.workout !== null);

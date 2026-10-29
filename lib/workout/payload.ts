@@ -47,6 +47,7 @@ export function toSavePayload(workout: ActiveWorkout, endedAt: Date = new Date()
       name: workout.name.trim() || 'Workout',
       started_at: workout.startedAt,
       ended_at: endedAt.toISOString(),
+      template_id: workout.templateId ?? null,
     },
     p_sets: sets,
   };

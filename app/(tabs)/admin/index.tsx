@@ -23,9 +23,9 @@ const sections: Section[] = [
   },
   {
     title: 'Templates',
-    description: 'Ready-made workout templates',
+    description: 'Ready-made workout templates and programs',
     icon: 'albums-outline',
-    stage: 3,
+    href: '/admin/templates',
   },
   {
     title: 'AI usage',

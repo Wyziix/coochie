@@ -11,6 +11,7 @@ import { useAuthStore } from '@/stores/authStore';
 //   jest.mock('@/lib/api/profiles', () => require('@/test-utils/backend').profilesMock);
 //   jest.mock('@/lib/api/exercises', () => require('@/test-utils/backend').exercisesMock);
 //   jest.mock('@/lib/api/workouts', () => require('@/test-utils/backend').workoutsMock);
+//   jest.mock('@/lib/api/templates', () => require('@/test-utils/backend').templatesMock);
 
 export const USER_ID = '11111111-1111-1111-1111-111111111111';
 
@@ -195,23 +196,131 @@ export const exercisesMock = {
   })),
 };
 
+const savedWorkout = (id: string, startedAt = '2026-10-30T10:00:00Z') => ({
+  id,
+  user_id: USER_ID,
+  name: 'Saved workout',
+  started_at: startedAt,
+  ended_at: '2026-10-30T11:00:00Z',
+  duration_seconds: 3600,
+  total_volume_kg: 400,
+  notes: null,
+  template_id: null,
+  created_at: '',
+  updated_at: '',
+});
+
 export const workoutsMock = {
   saveWorkout: jest.fn(async (payload: { p_workout: { id: string; name: string } }) => ({
-    id: payload.p_workout.id,
+    ...savedWorkout(payload.p_workout.id),
     name: payload.p_workout.name,
   })),
   fetchRecentWorkouts: jest.fn(async () => []),
+  fetchWorkoutsPage: jest.fn(async (page: number) =>
+    page === 0 ? [{ ...savedWorkout('w-1', new Date().toISOString()), set_count: 4 }] : [],
+  ),
+  fetchWorkoutsBetween: jest.fn(async () => [
+    { ...savedWorkout('w-1', new Date().toISOString()), set_count: 4 },
+  ]),
+  deleteWorkout: jest.fn(async () => {}),
   fetchWorkout: jest.fn(async (id: string) => ({
-    id,
-    user_id: USER_ID,
-    name: 'Saved workout',
-    started_at: '2026-10-30T10:00:00Z',
-    ended_at: '2026-10-30T11:00:00Z',
-    duration_seconds: 3600,
-    total_volume_kg: 400,
-    notes: null,
-    created_at: '',
-    updated_at: '',
-    sets: [],
+    ...savedWorkout(id),
+    sets: [
+      {
+        id: 'set-1',
+        workout_id: id,
+        user_id: USER_ID,
+        exercise_id: 'ex-bench',
+        exercise_order: 0,
+        set_order: 0,
+        set_type: 'normal',
+        weight_kg: 80,
+        reps: 5,
+        rpe: null,
+        duration_seconds: null,
+        distance_m: null,
+        created_at: '',
+        updated_at: '',
+        exercise: { id: 'ex-bench', name: 'Bench Press (Barbell)', type: 'weights' },
+      },
+    ],
   })),
+};
+
+const templateExercise = (templateId: string, e: Exercise, position: number, sets = 3) => ({
+  id: `${templateId}-${e.id}`,
+  template_id: templateId,
+  exercise_id: e.id,
+  position,
+  target_sets: sets,
+  target_reps_min: 8,
+  target_reps_max: 12,
+  target_duration_seconds: null,
+  rest_seconds: null,
+  exercise: {
+    id: e.id,
+    name: e.name,
+    type: e.type,
+    primary_muscle: e.primary_muscle,
+    default_rest_seconds: e.default_rest_seconds,
+    is_hidden: e.is_hidden,
+  },
+});
+
+export const templatesState = {
+  list: [] as unknown[],
+};
+
+export function resetTemplates() {
+  const [bench, squat] = exercisesState.list;
+  templatesState.list = [
+    {
+      id: 'tpl-push',
+      owner_id: null,
+      name: 'Push',
+      notes: 'Chest, shoulders, triceps.',
+      program: 'Push Pull Legs',
+      position: 1,
+      is_hidden: false,
+      created_at: '',
+      updated_at: '',
+      exercises: [templateExercise('tpl-push', bench!, 0, 4)],
+    },
+    {
+      id: 'tpl-mine',
+      owner_id: USER_ID,
+      name: 'My Legs',
+      notes: null,
+      program: null,
+      position: 0,
+      is_hidden: false,
+      created_at: '',
+      updated_at: '',
+      exercises: [templateExercise('tpl-mine', squat!, 0, 5)],
+    },
+  ];
+}
+resetTemplates();
+
+const saveTemplateImpl = (owner: string | null) =>
+  jest.fn(async (id: string | null, payload: { p_template: { name: string } }) => ({
+    id: id ?? 'tpl-new',
+    owner_id: owner,
+    name: payload.p_template.name,
+  }));
+
+export const templatesMock = {
+  fetchTemplates: jest.fn(async () => templatesState.list),
+  saveTemplate: saveTemplateImpl(USER_ID),
+  deleteTemplate: jest.fn(async () => {}),
+  templateFromWorkout: jest.fn(async (_w: string, name: string) => ({
+    id: 'tpl-from-workout',
+    name,
+  })),
+  adminSaveTemplate: saveTemplateImpl(null),
+  adminSetTemplateHidden: jest.fn(async (id: string, hidden: boolean) => ({
+    id,
+    is_hidden: hidden,
+  })),
+  adminDeleteTemplate: jest.fn(async () => {}),
 };

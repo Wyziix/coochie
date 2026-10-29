@@ -1,10 +1,16 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
+import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
-import { Button, Card, ErrorState, LoadingState, Text } from '@/components/ui';
+import { BottomSheet, Button, Card, ErrorState, Input, LoadingState, Text } from '@/components/ui';
 import { useProfile } from '@/hooks/useProfile';
 import { useTheme } from '@/hooks/useTheme';
-import { useWorkout } from '@/hooks/useWorkouts';
+import { useTemplateFromWorkout } from '@/hooks/useTemplates';
+import { useDeleteWorkout, useWorkout } from '@/hooks/useWorkouts';
+import { confirm } from '@/lib/confirm';
+import { describeError } from '@/lib/errors';
+import { workoutForEditing } from '@/lib/workout/fromTemplate';
+import { useEditWorkoutStore } from '@/stores/workoutStore';
 import type { WorkoutDetail } from '@/lib/api/workouts';
 import { setTypeLabels } from '@/lib/exercises/labels';
 import { formatWeight, toDisplayWeight, type WeightUnit } from '@/lib/units';
@@ -33,10 +39,54 @@ export default function WorkoutSummaryScreen() {
   const { id, finished } = useLocalSearchParams<{ id: string; finished?: string }>();
   const { data: workout, isPending, error, refetch } = useWorkout(id);
   const unit = useProfile().data?.units ?? 'kg';
+  const remove = useDeleteWorkout();
+  const asTemplate = useTemplateFromWorkout();
+  const [templateName, setTemplateName] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   if (isPending) return <LoadingState />;
   if (error) return <ErrorState error={error} onRetry={() => refetch()} />;
   if (!workout) return <ErrorState title="Workout not found" message="It may have been deleted." />;
+
+  function edit() {
+    useEditWorkoutStore.getState().load(workoutForEditing(workout!, unit));
+    router.push({
+      pathname: '/workouts/edit',
+      params: {
+        id: workout!.id,
+        minutes: String(Math.max(1, Math.round(workout!.duration_seconds / 60))),
+      },
+    });
+  }
+
+  async function onDelete() {
+    const ok = await confirm({
+      title: `Delete “${workout!.name}”?`,
+      message: 'This can’t be undone. Totals and records are recalculated.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
+    if (!ok) return;
+    setActionError(null);
+    remove.mutate(workout!.id, {
+      onSuccess: () => (router.canGoBack() ? router.back() : router.replace('/workout')),
+      onError: (e) => setActionError(`Couldn’t delete: ${describeError(e).message}`),
+    });
+  }
+
+  function saveAsTemplate() {
+    const name = templateName?.trim();
+    if (!name) return;
+    asTemplate.mutate(
+      { workoutId: workout!.id, name },
+      {
+        onSuccess: (t) => {
+          setTemplateName(null);
+          router.push({ pathname: '/templates/[id]', params: { id: t.id } });
+        },
+      },
+    );
+  }
 
   // Group sets by exercise block, keeping order.
   const blocks: { name: string; sets: SetRowData[] }[] = [];
@@ -102,6 +152,50 @@ export default function WorkoutSummaryScreen() {
       {finished ? (
         <Button title="Done" onPress={() => router.replace('/workout')} fullWidth />
       ) : null}
+
+      <View style={{ gap: theme.spacing.sm }}>
+        <Button title="Edit workout" variant="secondary" onPress={edit} />
+        <Button
+          title="Save as template"
+          variant="secondary"
+          onPress={() => setTemplateName(workout.name)}
+        />
+        <Button
+          title="Delete workout"
+          variant="ghost"
+          onPress={onDelete}
+          loading={remove.isPending}
+        />
+        {actionError ? <Text color="danger">{actionError}</Text> : null}
+      </View>
+
+      <BottomSheet
+        visible={templateName !== null}
+        onClose={() => setTemplateName(null)}
+        title="Save as template"
+      >
+        <Text color="textMuted">
+          Same exercises in the same order, with the sets and reps you did.
+        </Text>
+        <Input
+          label="Template name"
+          value={templateName ?? ''}
+          onChangeText={setTemplateName}
+          maxLength={60}
+          autoFocus
+          returnKeyType="done"
+          onSubmitEditing={saveAsTemplate}
+        />
+        {asTemplate.error ? (
+          <Text color="danger">Couldn’t save: {describeError(asTemplate.error).message}</Text>
+        ) : null}
+        <Button
+          title="Save template"
+          onPress={saveAsTemplate}
+          loading={asTemplate.isPending}
+          disabled={!templateName?.trim()}
+        />
+      </BottomSheet>
     </ScrollView>
   );
 }

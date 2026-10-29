@@ -23,6 +23,7 @@ type Props = {
   onToggleDone: () => void;
   onOpenOptions: () => void;
   onUsePrevious: () => void;
+  showPrevious?: boolean;
 };
 
 export function SetRow({
@@ -37,6 +38,7 @@ export function SetRow({
   onToggleDone,
   onOpenOptions,
   onUsePrevious,
+  showPrevious = true,
 }: Props) {
   const theme = useTheme();
   const f = fieldsFor(type);
@@ -72,17 +74,19 @@ export function SetRow({
         ) : null}
       </Pressable>
 
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${name} previous: ${formatLastSet(last, type, unit)}. Tap to copy.`}
-        onPress={onUsePrevious}
-        disabled={!last}
-        style={styles.prevCol}
-      >
-        <Text variant="caption" color="textMuted" numberOfLines={1}>
-          {formatLastSet(last, type, unit)}
-        </Text>
-      </Pressable>
+      {showPrevious ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${name} previous: ${formatLastSet(last, type, unit)}. Tap to copy.`}
+          onPress={onUsePrevious}
+          disabled={!last}
+          style={styles.prevCol}
+        >
+          <Text variant="caption" color="textMuted" numberOfLines={1}>
+            {formatLastSet(last, type, unit)}
+          </Text>
+        </Pressable>
+      ) : null}
 
       {f.weight ? (
         <CellInput

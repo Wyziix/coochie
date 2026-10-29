@@ -12,6 +12,9 @@ import {
 jest.mock('@/lib/env', () => require('@/test-utils/backend').envMock);
 jest.mock('@/lib/supabase', () => require('@/test-utils/backend').supabaseMock);
 jest.mock('@/lib/api/profiles', () => require('@/test-utils/backend').profilesMock);
+jest.mock('@/lib/api/templates', () => require('@/test-utils/backend').templatesMock);
+jest.mock('@/lib/api/workouts', () => require('@/test-utils/backend').workoutsMock);
+jest.mock('@/lib/api/exercises', () => require('@/test-utils/backend').exercisesMock);
 
 const appDir = path.resolve(__dirname, '../app');
 

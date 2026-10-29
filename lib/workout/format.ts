@@ -67,3 +67,20 @@ export function defaultWorkoutName(date = new Date()): string {
   if (h < 17) return 'Afternoon workout';
   return 'Evening workout';
 }
+
+/** "3 × 8–12", "5 × 5", "2 × 0:45". */
+export function formatTarget(target: {
+  sets: number;
+  repsMin: number | null;
+  repsMax: number | null;
+  durationSeconds: number | null;
+}): string {
+  const what = target.durationSeconds
+    ? formatDuration(target.durationSeconds)
+    : target.repsMin && target.repsMax && target.repsMax !== target.repsMin
+      ? `${target.repsMin}–${target.repsMax}`
+      : target.repsMin
+        ? String(target.repsMin)
+        : null;
+  return what ? `${target.sets} × ${what}` : `${target.sets} sets`;
+}

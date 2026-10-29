@@ -1,0 +1,54 @@
+import type { Template } from '@/lib/api/templates';
+
+/** A ready-made template with a weights and a timed exercise. */
+export const template: Template = {
+  id: 't1',
+  owner_id: null,
+  name: 'Push',
+  notes: 'Chest day',
+  program: 'Push Pull Legs',
+  position: 1,
+  is_hidden: false,
+  created_at: '',
+  updated_at: '',
+  exercises: [
+    {
+      id: 'te1',
+      template_id: 't1',
+      exercise_id: 'bench',
+      position: 0,
+      target_sets: 4,
+      target_reps_min: 6,
+      target_reps_max: 8,
+      target_duration_seconds: null,
+      rest_seconds: 180,
+      exercise: {
+        id: 'bench',
+        name: 'Bench',
+        type: 'weights',
+        primary_muscle: 'chest',
+        default_rest_seconds: 120,
+        is_hidden: false,
+      },
+    },
+    {
+      id: 'te2',
+      template_id: 't1',
+      exercise_id: 'plank',
+      position: 1,
+      target_sets: 2,
+      target_reps_min: null,
+      target_reps_max: null,
+      target_duration_seconds: 45,
+      rest_seconds: null,
+      exercise: {
+        id: 'plank',
+        name: 'Plank',
+        type: 'timed',
+        primary_muscle: 'abs',
+        default_rest_seconds: 60,
+        is_hidden: false,
+      },
+    },
+  ],
+};

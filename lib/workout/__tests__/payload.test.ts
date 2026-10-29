@@ -91,6 +91,7 @@ describe('toSavePayload', () => {
       name: 'Push',
       started_at: '2026-10-30T10:00:00.000Z',
       ended_at: '2026-10-30T11:00:00.000Z',
+      template_id: null,
     });
   });
 

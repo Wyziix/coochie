@@ -1,4 +1,4 @@
-import { router, Stack } from 'expo-router';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,15 +8,23 @@ import { ExerciseRow } from '@/components/exercises/ExerciseRow';
 import { Button } from '@/components/ui';
 import { useExercises, useRecentExerciseIds, useRestSettings } from '@/hooks/useExercises';
 import { useTheme } from '@/hooks/useTheme';
-import { useWorkoutStore } from '@/stores/workoutStore';
+import { useTemplateDraftStore } from '@/stores/templateDraftStore';
+import { useEditWorkoutStore, useWorkoutStore } from '@/stores/workoutStore';
 
-/** Pick one or more exercises to add to the active workout. */
+/**
+ * Pick one or more exercises (tap to select, then Add). ?target= decides
+ * where they go: the active workout (default), a past workout being edited,
+ * or the template being built.
+ */
 export default function PickExercisesScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { data: exercises } = useExercises();
   const { data: restSettings } = useRestSettings();
   const { data: recentIds } = useRecentExerciseIds();
+  const { target = 'workout' } = useLocalSearchParams<{
+    target?: 'workout' | 'edit' | 'template';
+  }>();
   const [selected, setSelected] = useState<string[]>([]);
 
   const toggle = (id: string) =>
@@ -26,9 +34,12 @@ export default function PickExercisesScreen() {
     const chosen = selected
       .map((id) => exercises?.find((e) => e.id === id))
       .filter((e) => e !== undefined);
-    useWorkoutStore
-      .getState()
-      .addExercises(chosen, (e) => restSettings?.[e.id] ?? e.default_rest_seconds);
+    if (target === 'template') {
+      useTemplateDraftStore.getState().addExercises(chosen);
+    } else {
+      const store = target === 'edit' ? useEditWorkoutStore : useWorkoutStore;
+      store.getState().addExercises(chosen, (e) => restSettings?.[e.id] ?? e.default_rest_seconds);
+    }
     router.back();
   }
 
