@@ -1,7 +1,8 @@
-import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
+import { PhotoGate } from '@/components/photos/PhotoGate';
+import { PrivateImage } from '@/components/photos/PrivateImage';
 import { ErrorState, LoadingState, Text } from '@/components/ui';
 import { useMeasurements } from '@/hooks/useBody';
 import { usePhotos } from '@/hooks/usePhotos';
@@ -12,6 +13,18 @@ import { bodyValue, shortDate } from '@/lib/progress/series';
 
 /** Two progress photos side by side, older on the left, with the bodyweight logged closest to each date. */
 export default function ComparePhotosScreen() {
+  const theme = useTheme();
+  return (
+    <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
+      <Stack.Screen options={{ title: 'Compare' }} />
+      <PhotoGate>
+        <Compare />
+      </PhotoGate>
+    </View>
+  );
+}
+
+function Compare() {
   const theme = useTheme();
   const { a, b } = useLocalSearchParams<{ a: string; b: string }>();
   const { data: photos, isPending, error, refetch } = usePhotos();
@@ -52,7 +65,6 @@ export default function ComparePhotosScreen() {
         },
       ]}
     >
-      <Stack.Screen options={{ title: 'Compare' }} />
       <Text variant="label" color="textMuted" style={styles.center}>
         {days} day{days === 1 ? '' : 's'} apart
       </Text>
@@ -65,9 +77,7 @@ export default function ComparePhotosScreen() {
                 { borderRadius: theme.radius.md, backgroundColor: theme.colors.surfaceAlt },
               ]}
             >
-              {p.url ? (
-                <Image source={{ uri: p.url }} style={StyleSheet.absoluteFill} contentFit="cover" />
-              ) : null}
+              <PrivateImage uri={p.url} style={StyleSheet.absoluteFill} contentFit="cover" />
             </View>
             <Text variant="label" style={styles.center}>
               {shortDate(p.taken_on)} {p.taken_on.slice(0, 4)}

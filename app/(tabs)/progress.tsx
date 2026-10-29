@@ -1,24 +1,33 @@
-import { Image } from 'expo-image';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { Button, Card, EmptyState, ErrorState, Header, Screen, Text } from '@/components/ui';
 import { useMeasurements } from '@/hooks/useBody';
-import { usePhotos } from '@/hooks/usePhotos';
+import { useLockStatus } from '@/hooks/usePhotoLock';
 import { useProfile } from '@/hooks/useProfile';
 import { useRecentRecords, useTrainedExercises } from '@/hooks/useProgress';
 import { useTheme } from '@/hooks/useTheme';
+import type { LockStatus } from '@/lib/api/photoLock';
 import { muscleLabels } from '@/lib/exercises/labels';
 import { latest } from '@/lib/progress/measurements';
 import { formatRecordValue, recordLabels } from '@/lib/progress/records';
 import { bodyValue, shortDate } from '@/lib/progress/series';
 
+function photoCaption(lock: LockStatus | undefined) {
+  if (!lock) return ' ';
+  if (lock.state === 'setup') return 'Tap to set a PIN';
+  if (!lock.photo_count) return 'Tap to add';
+  const n = `${lock.photo_count} photo${lock.photo_count === 1 ? '' : 's'}`;
+  return lock.state === 'none' ? n : `Locked · ${n}`;
+}
+
 export default function ProgressScreen() {
   const theme = useTheme();
   const unit = useProfile().data?.units ?? 'kg';
   const body = useMeasurements();
-  const photos = usePhotos();
+  const photoLock = useLockStatus();
   const records = useRecentRecords(8);
   const exercises = useTrainedExercises();
   const [now] = useState(() => Date.now());
@@ -64,24 +73,19 @@ export default function ProgressScreen() {
           <Text variant="caption" color="textMuted">
             Photos
           </Text>
-          <View style={[styles.thumbs, { gap: 4 }]}>
-            {(photos.data ?? [])
-              .slice(0, 3)
-              .map((p) =>
-                p.url ? (
-                  <Image
-                    key={p.id}
-                    source={{ uri: p.url }}
-                    style={[styles.thumb, { borderRadius: theme.radius.sm }]}
-                    contentFit="cover"
-                  />
-                ) : null,
-              )}
+          {/* Thumbnails stay hidden outside the photos section: they need the PIN. */}
+          <View style={[styles.lockRow, { gap: theme.spacing.xs }]}>
+            {photoLock.data?.state === 'none' ? (
+              <Ionicons name="images-outline" size={22} color={theme.colors.textMuted} />
+            ) : (
+              <View accessibilityLabel="Locked">
+                <Ionicons name="lock-closed" size={22} color={theme.colors.textMuted} />
+              </View>
+            )}
+            <Text variant="heading">{photoLock.data?.photo_count ?? '–'}</Text>
           </View>
           <Text variant="caption" color="textMuted">
-            {photos.data?.length
-              ? `${photos.data.length} photo${photos.data.length === 1 ? '' : 's'}`
-              : 'Tap to add'}
+            {photoCaption(photoLock.data)}
           </Text>
         </Card>
       </View>
@@ -159,6 +163,5 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   row: { flexDirection: 'row', alignItems: 'center' },
   right: { alignItems: 'flex-end' },
-  thumbs: { flexDirection: 'row', minHeight: 40 },
-  thumb: { width: 30, height: 40 },
+  lockRow: { flexDirection: 'row', alignItems: 'center' },
 });

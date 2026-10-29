@@ -112,14 +112,12 @@ select pg_temp.expect_error($$insert into public.body_measurements (measured_on,
 select pg_temp.expect_error($$insert into public.body_measurements (user_id, measured_on, bodyweight_kg) values ('99999999-0000-0000-0000-000000000002', '2026-07-03', 70)$$,
   'cannot log for someone else');
 
--- Progress photos.
-insert into public.progress_photos (storage_path) values ('99999999-0000-0000-0000-000000000001/p1.jpg');
-select pg_temp.expect_error($$insert into public.progress_photos (storage_path) values ('99999999-0000-0000-0000-000000000002/p2.jpg')$$,
-  'photo row must point into own folder');
-insert into storage.objects (bucket_id, name) values ('progress-photos', '99999999-0000-0000-0000-000000000001/p1.jpg');
-select pg_temp.check(true, 'can upload a photo into own folder');
-select pg_temp.expect_error($$insert into storage.objects (bucket_id, name) values ('progress-photos', '99999999-0000-0000-0000-000000000002/x.jpg')$$,
-  'cannot upload into another user''s photo folder');
+-- Progress photos: since the photo lock, clients can't touch rows or files
+-- directly (everything goes through the photos Edge Function, see photo_lock.test.sql).
+select pg_temp.expect_error($$insert into public.progress_photos (storage_path) values ('99999999-0000-0000-0000-000000000001/p1.jpg')$$,
+  'clients cannot insert photo rows directly');
+select pg_temp.expect_error($$insert into storage.objects (bucket_id, name) values ('progress-photos', '99999999-0000-0000-0000-000000000001/p1.jpg')$$,
+  'clients cannot upload into the photo bucket directly');
 select pg_temp.logout();
 select pg_temp.check((select not public from storage.buckets where id = 'progress-photos'), 'progress-photos bucket is private');
 
@@ -129,7 +127,7 @@ select pg_temp.check((select count(*) = 0 from public.personal_records), 'other 
 select pg_temp.check((select count(*) = 0 from public.workout_records('a0000000-0000-0000-0000-000000000002')), 'or another user''s celebration');
 select pg_temp.check((select count(*) = 0 from public.exercise_history(pg_temp.bench())), 'or chart data');
 select pg_temp.check((select count(*) = 0 from public.body_measurements), 'or body measurements');
-select pg_temp.check((select count(*) = 0 from public.progress_photos), 'or photo rows');
+select pg_temp.expect_error($$select count(*) from public.progress_photos$$, 'or read photo rows');
 select pg_temp.check((select count(*) = 0 from storage.objects where bucket_id = 'progress-photos'), 'or photo files');
 with d as (delete from storage.objects where bucket_id = 'progress-photos' returning 1)
 select pg_temp.check((select count(*) = 0 from d), 'or delete them');

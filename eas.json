@@ -8,16 +8,25 @@
       "developmentClient": true,
       "distribution": "internal",
       "environment": "development",
-      "android": { "buildType": "apk" }
+      "android": {
+        "buildType": "apk"
+      },
+      "node": "24.11.1"
     },
     "preview": {
       "distribution": "internal",
       "environment": "preview",
-      "android": { "buildType": "apk" }
+      "android": {
+        "buildType": "apk"
+      },
+      "node": "24.11.1"
     },
     "production": {
       "environment": "production",
-      "android": { "buildType": "apk" }
+      "android": {
+        "buildType": "apk"
+      },
+      "node": "24.11.1"
     }
   }
 }

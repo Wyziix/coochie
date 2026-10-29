@@ -11,7 +11,7 @@ App name: **LightweightBaby** · bundle ID / package `com.lightweightbaby.app` �
 - **Web is a first-class target from Stage 1 on.** Every feature must work on web, or be hidden/disabled cleanly there (health sync, background notifications, barcode scanner if needed, etc.). Never crash on web.
 - **Google login on web** uses the Supabase OAuth redirect (PKCE). Android uses native Google sign-in.
 - **PWA:** installable, manifest + icons, name "LightweightBaby", `display: standalone`.
-- **Stage 13 adds:** deploy the web app (EAS Hosting or Vercel, whichever is simpler and free), share the link, and write the iPhone "Add to Home Screen" steps.
+- **Web deploy moved forward** (from Stage 13, done after Stage 4): Cloudflare Pages, link + iPhone "Add to Home Screen" steps in docs/SETUP.md section 9.
 
 ## Stage status
 
@@ -95,7 +95,7 @@ Checks: typecheck, lint, prettier, 47 Jest tests, 25 DB tests. Web and native bu
 
 - Tested by you against the real project (`gwyymvaxgmpamtiuhoez`): Google login on web works, migration applied
 - iPhone PWA + Google redirect: the redirect flow is the right approach for home-screen web apps, but iOS standalone mode sometimes opens OAuth in a separate browser sheet. Test it early on her phone once the web app is reachable; if it's flaky, the fallback is an email magic link for web
-- Stage 5 (offline on web): expo-sqlite on web needs extra HTTP headers (COOP/COEP). This affects which host we pick in Stage 13
+- Stage 5 (offline on web): expo-sqlite on web needs extra HTTP headers (COOP/COEP). Host picked with this in mind (Cloudflare Pages, see below)
 - PWA icons are placeholders; real icon in Stage 13
 
 ## Stage 1 additions – roles, secure session, email login
@@ -234,8 +234,42 @@ Checks: typecheck, lint, prettier, 175 Jest tests, 159 DB checks (PRs over three
 ### Known issues
 
 - Photos are compressed in the app; a client could skip that and upload up to 10 MB (the bucket limit). Fine for two users
-- Signed photo URLs expire after 1 hour; leaving the photos page open longer needs the page to be reopened
+- ~~Signed photo URLs expire after 1 hour~~ (replaced by the photo lock: URLs live as long as the 5-minute unlock)
 - The photo date is a text field (YYYY-MM-DD) like the edit-workout form; proper pickers are on the Stage 13 list
+
+## After Stage 4 – photo lock, web deploy, lock file
+
+Built:
+
+- **Lock file fix**: `npm install` on npm 11 rewrote `package-lock.json` (npm 10 had written `"dev": true` on a few optional packages, npm 11 doesn't). The lock is now written by npm 11; `package.json` `engines` requires npm 11 and `.npmrc` has `engine-strict=true`, so npm 10 stops with a clear error instead of changing the file. `.nvmrc` = 24; EAS builds use Node 24.11.1 (npm 11)
+- **Photo lock** (`20261102000000_photo_lock.sql`, `supabase/functions/photos`):
+  - First visit to Progress photos asks for a 4–6 digit PIN or a password (your choice). Change, remove or set it in Profile → Photo lock
+  - Stored only as a bcrypt hash (pgcrypto) in a table the app can't read. Not stored on the device
+  - The right PIN gets a random unlock token (5 minutes, only its hash is stored). The app has **no direct access** to photo rows or files any more: policies and grants removed. The `photos` Edge Function lists, signs (URLs live at most as long as the unlock), uploads and deletes, and only after the database accepted the token for the signed-in user
+  - Re-locks when you leave the photos section, when the app goes to the background (not while the camera/photo picker is open), after 5 minutes, on the lock button, or on sign-out. The photo list and its URLs are dropped from memory; on web photos are shown from in-memory `blob:` URLs and never cached; on Android the image cache is off for them
+  - Locked state: Progress tab shows a lock icon and the count, no thumbnails; compare and the viewer are behind the same lock
+  - 5 wrong attempts → 15 minutes locked, counted in the database (also for wrong biometric keys and for change/remove with a wrong current PIN)
+  - Forgot PIN: sign in with Google again; the database only resets if the login token says Google (`amr` = oauth) within the last 10 minutes. Email code / magic link don't count. Resetting keeps the photos; you choose a new PIN. On web it continues after the Google redirect; if the Google account is a different LightweightBaby account it stops
+  - Android: optional fingerprint/face unlock (expo-local-authentication). It's a separate random device key kept in the Android keystore behind biometrics (expo-secure-store `requireAuthentication`), not the PIN; removing or resetting the lock revokes it. Web: PIN/password only
+- **Web deploy**: Cloudflare Pages, `npm run deploy:web` (export + wrangler upload), `public/_headers` (security headers, long caching for hashed files), step-by-step in docs/SETUP.md section 9, incl. Supabase/Google dashboard changes and iPhone steps. `npm run deploy:functions` deploys the Edge Function
+
+Checks: typecheck, lint, prettier, 190 Jest tests (lock setup, wrong PIN counter and lockout, re-lock on leave / background / expiry / refused token, picker doesn't re-lock, locked compare, forgot PIN, biometrics, settings change/remove), 11 Edge Function tests (Deno: no or wrong / expired / other user's token → nothing listed, signed, uploaded or deleted; only JPEG ≤ 10 MB; orphan file removed), 226 DB checks (no direct access to own or others' rows/files, hashes, lockout, expiry, other user's token, reset needs fresh Google login, photos kept). Production web build served with the same headers, tested at 390 px and 1440 px: set PIN, upload (1.1 MB → 148 KB), photo shown from `blob:`, signed URL never in the page, re-lock on leaving and on hiding the page, wrong PIN message, still signed in after reopening. No console errors. Also ran once with COOP/COEP `require-corp` turned on (Chromium): everything still worked.
+
+### Decisions
+
+- **Host: Cloudflare Pages.** Free with unlimited bandwidth and no commercial-use limit; `_headers` applies to every response including JS files (COOP/COEP for Stage 5 must cover the SQLite worker script too); single-page fallback built in; one CLI command to deploy. EAS Hosting only applies custom headers to HTML/API responses, not static files. Vercel works too but its free plan is non-commercial only. Netlify's free plan now spends credits per deploy
+- **COOP/COEP not set yet.** Nothing needs them before Stage 5, and iPhone Safari only supports `require-corp`, which blocks cross-origin images without CORS/CORP headers. Photos already avoid that (blob: URLs)
+- The PIN is checked in the database (bcrypt), and the Edge Function checks the unlock token, instead of sending the PIN with every request
+- Unlock is a fixed 5 minutes from unlocking (not extended by activity)
+- Changing the PIN ends all unlocks but keeps biometric keys; removing the lock or resetting it drops them
+- "Removed" (no lock) still goes through the Edge Function; it just needs no PIN
+
+### Known issues / to check
+
+- The Edge Function must be deployed (`npm run deploy:functions`) or photos show "The photos Edge Function isn't deployed yet"
+- iPhone home-screen app: Google sign-in may come back to Safari instead of the app; email code works. Forgot PIN needs Google: if it doesn't work inside the home-screen app, do the reset in Safari (it's stored on the server), then open the app and set the new PIN
+- Biometric unlock is untested on a real phone (needs a new Android build: `npx eas-cli@latest build --profile preview --platform android`)
+- The "fresh Google login" check relies on Supabase putting `amr: [{method: "oauth", timestamp}]` in the token (true for both the web redirect and Android ID-token sign-in, per Supabase Auth source)
 
 ## Planned for Stage 13 (polish)
 

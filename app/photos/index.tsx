@@ -1,9 +1,10 @@
-import { Image } from 'expo-image';
 import { router, Stack } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { PhotoGate } from '@/components/photos/PhotoGate';
+import { PrivateImage } from '@/components/photos/PrivateImage';
 import {
   BottomSheet,
   Button,
@@ -23,6 +24,7 @@ import { confirm } from '@/lib/confirm';
 import { describeError } from '@/lib/errors';
 import { dateKey } from '@/lib/history/calendar';
 import { shortDate } from '@/lib/progress/series';
+import { lockPhotos, usePhotoLockStore } from '@/stores/photoLockStore';
 
 const POSES: { value: Pose; label: string }[] = [
   { value: 'front', label: 'Front' },
@@ -32,6 +34,31 @@ const POSES: { value: Pose; label: string }[] = [
 ];
 
 export default function PhotosScreen() {
+  const theme = useTheme();
+  const unlocked = usePhotoLockStore((s) => s.token !== null);
+  return (
+    <View style={[styles.flex, { backgroundColor: theme.colors.background }]}>
+      <Stack.Screen
+        options={{
+          title: 'Progress photos',
+          headerRight: () =>
+            unlocked ? (
+              <IconButton
+                icon="lock-closed-outline"
+                accessibilityLabel="Lock photos"
+                onPress={lockPhotos}
+              />
+            ) : null,
+        }}
+      />
+      <PhotoGate>
+        <Photos />
+      </PhotoGate>
+    </View>
+  );
+}
+
+function Photos() {
   const theme = useTheme();
   const { data: photos, isPending, error, refetch } = usePhotos();
   const add = useAddPhoto();
@@ -80,29 +107,32 @@ export default function PhotosScreen() {
 
   return (
     <View style={[styles.flex, { backgroundColor: theme.colors.background }]}>
-      <Stack.Screen
-        options={{
-          title: 'Progress photos',
-          headerRight: () =>
-            (photos?.length ?? 0) >= 2 ? (
-              <Button
-                title={comparing ? 'Cancel' : 'Compare'}
-                variant="ghost"
-                onPress={() => setComparing(comparing ? null : [])}
-              />
-            ) : null,
-        }}
-      />
       <ScrollView contentContainerStyle={{ padding: theme.spacing.lg, gap: theme.spacing.md }}>
         <Text variant="caption" color="textMuted">
-          Private: only you can see these.
+          Private: only you can see these. Locks again when you leave, after 5 minutes, or when the
+          app goes to the background.
         </Text>
         {comparing ? (
-          <Text variant="label" color="primary" accessibilityLiveRegion="polite">
-            Tap two photos to compare ({comparing.length}/2)
-          </Text>
+          <View style={[styles.actions, { gap: theme.spacing.sm }]}>
+            <Text
+              variant="label"
+              color="primary"
+              accessibilityLiveRegion="polite"
+              style={styles.flex}
+            >
+              Tap two photos to compare ({comparing.length}/2)
+            </Text>
+            <Button title="Cancel" variant="ghost" onPress={() => setComparing(null)} />
+          </View>
         ) : (
-          <Button title="Add photo" onPress={() => setAdding(true)} fullWidth />
+          <View style={[styles.actions, { gap: theme.spacing.sm }]}>
+            <View style={styles.flex}>
+              <Button title="Add photo" onPress={() => setAdding(true)} fullWidth />
+            </View>
+            {(photos?.length ?? 0) >= 2 ? (
+              <Button title="Compare" variant="secondary" onPress={() => setComparing([])} />
+            ) : null}
+          </View>
         )}
 
         {isPending ? (
@@ -140,13 +170,11 @@ export default function PhotosScreen() {
                         },
                       ]}
                     >
-                      {p.url ? (
-                        <Image
-                          source={{ uri: p.url }}
-                          style={StyleSheet.absoluteFill}
-                          contentFit="cover"
-                        />
-                      ) : null}
+                      <PrivateImage
+                        uri={p.url}
+                        style={StyleSheet.absoluteFill}
+                        contentFit="cover"
+                      />
                       <Text
                         variant="caption"
                         color="onMedia"
@@ -243,8 +271,8 @@ export default function PhotosScreen() {
               onPress={() => setViewing(null)}
             />
           </View>
-          {viewing?.url ? (
-            <Image source={{ uri: viewing.url }} style={styles.flex} contentFit="contain" />
+          {viewing ? (
+            <PrivateImage uri={viewing.url} style={styles.flex} contentFit="contain" />
           ) : null}
           {remove.error ? (
             <Text color="danger">Couldn’t delete: {describeError(remove.error).message}</Text>
@@ -274,4 +302,5 @@ const styles = StyleSheet.create({
   },
   viewer: { flex: 1 },
   viewerBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12 },
+  actions: { flexDirection: 'row', alignItems: 'center' },
 });

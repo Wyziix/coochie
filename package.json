@@ -21,6 +21,7 @@
     "expo-image-picker": "~58.0.10",
     "expo-linear-gradient": "~58.0.3",
     "expo-linking": "~58.0.15",
+    "expo-local-authentication": "~58.0.2",
     "expo-notifications": "~58.1.7",
     "expo-router": "~58.0.28",
     "expo-secure-store": "~58.0.2",
@@ -63,8 +64,16 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "jest",
-    "check": "npm run typecheck && npm run lint && npm run format:check && npm test -- --ci",
-    "test:db": "bash scripts/test-db.sh"
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm test -- --ci && npm run test:functions",
+    "test:db": "bash scripts/test-db.sh",
+    "test:functions": "npx -y deno@2.9.6 test supabase/functions",
+    "build:web": "expo export --platform web --clear",
+    "deploy:web": "npm run build:web && npx -y wrangler@4.155.0 pages deploy dist --project-name ${CF_PAGES_PROJECT:-lightweightbaby} --branch main --commit-dirty=true",
+    "deploy:functions": "npx -y supabase@2.122.0 functions deploy photos --no-verify-jwt --use-api --project-ref gwyymvaxgmpamtiuhoez"
   },
-  "private": true
+  "private": true,
+  "engines": {
+    "node": ">=22.12.0",
+    "npm": ">=11.0.0 <12.0.0"
+  }
 }

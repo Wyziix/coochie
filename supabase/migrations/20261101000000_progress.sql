@@ -545,41 +545,52 @@ create index if not exists progress_photos_user_idx on public.progress_photos (u
 
 alter table public.progress_photos enable row level security;
 
-drop policy if exists "progress_photos: own" on public.progress_photos;
-create policy "progress_photos: own"
+-- Skipped once the photo lock (20261102000000_photo_lock.sql) is applied: it
+-- removes direct access, and re-running this file must not bring it back.
+do $do$
+begin
+  if to_regclass('public.photo_locks') is null then
+    execute $p$drop policy if exists "progress_photos: own" on public.progress_photos$p$;
+    execute $p$create policy "progress_photos: own"
 on public.progress_photos for all
 to authenticated
 using (user_id = (select auth.uid()))
-with check (user_id = (select auth.uid()));
+with check (user_id = (select auth.uid()))$p$;
+  end if;
+end $do$;
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('progress-photos', 'progress-photos', false, 10485760, array['image/jpeg', 'image/png', 'image/webp'])
 on conflict (id) do update set public = false;
 
-drop policy if exists "progress-photos: read own folder" on storage.objects;
-create policy "progress-photos: read own folder"
+-- Skipped once the photo lock (20261102000000_photo_lock.sql) is applied: it
+-- removes direct access, and re-running this file must not bring it back.
+do $do$
+begin
+  if to_regclass('public.photo_locks') is null then
+    execute $p$drop policy if exists "progress-photos: read own folder" on storage.objects$p$;
+    execute $p$create policy "progress-photos: read own folder"
 on storage.objects for select
 to authenticated
-using (bucket_id = 'progress-photos' and (storage.foldername(name))[1] = (select auth.uid())::text);
-
-drop policy if exists "progress-photos: upload to own folder" on storage.objects;
-create policy "progress-photos: upload to own folder"
+using (bucket_id = 'progress-photos' and (storage.foldername(name))[1] = (select auth.uid())::text)$p$;
+    execute $p$drop policy if exists "progress-photos: upload to own folder" on storage.objects$p$;
+    execute $p$create policy "progress-photos: upload to own folder"
 on storage.objects for insert
 to authenticated
-with check (bucket_id = 'progress-photos' and (storage.foldername(name))[1] = (select auth.uid())::text);
-
-drop policy if exists "progress-photos: update own folder" on storage.objects;
-create policy "progress-photos: update own folder"
+with check (bucket_id = 'progress-photos' and (storage.foldername(name))[1] = (select auth.uid())::text)$p$;
+    execute $p$drop policy if exists "progress-photos: update own folder" on storage.objects$p$;
+    execute $p$create policy "progress-photos: update own folder"
 on storage.objects for update
 to authenticated
 using (bucket_id = 'progress-photos' and (storage.foldername(name))[1] = (select auth.uid())::text)
-with check (bucket_id = 'progress-photos' and (storage.foldername(name))[1] = (select auth.uid())::text);
-
-drop policy if exists "progress-photos: delete own folder" on storage.objects;
-create policy "progress-photos: delete own folder"
+with check (bucket_id = 'progress-photos' and (storage.foldername(name))[1] = (select auth.uid())::text)$p$;
+    execute $p$drop policy if exists "progress-photos: delete own folder" on storage.objects$p$;
+    execute $p$create policy "progress-photos: delete own folder"
 on storage.objects for delete
 to authenticated
-using (bucket_id = 'progress-photos' and (storage.foldername(name))[1] = (select auth.uid())::text);
+using (bucket_id = 'progress-photos' and (storage.foldername(name))[1] = (select auth.uid())::text)$p$;
+  end if;
+end $do$;
 
 -- ---------------------------------------------------------------------------
 -- Records for workouts logged before this migration.

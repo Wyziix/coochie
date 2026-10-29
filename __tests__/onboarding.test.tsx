@@ -10,6 +10,11 @@ jest.mock('@/lib/api/profiles', () => require('@/test-utils/backend').profilesMo
 jest.mock('@/lib/api/progress', () => require('@/test-utils/backend').progressMock);
 jest.mock('@/lib/api/body', () => require('@/test-utils/backend').bodyMock);
 jest.mock('@/lib/api/photos', () => require('@/test-utils/backend').photosMock);
+jest.mock('@/lib/api/photoLock', () => ({
+  ...jest.requireActual('@/lib/api/photoLock'),
+  ...require('@/test-utils/backend').photoLockMock,
+}));
+jest.mock('@/lib/photos/biometrics', () => require('@/test-utils/backend').biometricsMock);
 jest.mock('@/lib/api/templates', () => require('@/test-utils/backend').templatesMock);
 jest.mock('@/lib/api/workouts', () => require('@/test-utils/backend').workoutsMock);
 jest.mock('@/lib/api/exercises', () => require('@/test-utils/backend').exercisesMock);

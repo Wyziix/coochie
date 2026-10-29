@@ -24,7 +24,7 @@ In [Google Cloud Console](https://console.cloud.google.com/) → APIs & Services
 
 1. **OAuth consent screen**: External, app name LightweightBaby. While it's in "Testing", add every Google account that will sign in (you and your girlfriend) as **test users**.
 2. **Credentials → Create OAuth client ID → Web application** (used by Supabase, the web app and Android):
-   - Authorized JavaScript origins: `http://localhost:8081` (later also the deployed web URL)
+   - Authorized JavaScript origins: `http://localhost:8081` (and the live URL, see section 9)
    - Authorized redirect URIs: `https://<project-ref>.supabase.co/auth/v1/callback`
    - Copy the client ID and client secret.
 3. **Create OAuth client ID → Android** (lets the APK use native sign-in):
@@ -42,8 +42,8 @@ EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=<web-client-id>.apps.googleusercontent.com
 
 - Authentication → Sign In / Providers → **Google**: enable, paste the **web** client ID and secret.
 - Authentication → URL Configuration:
-  - Site URL: `http://localhost:8081` for now (the deployed web URL after Stage 13)
-  - Redirect URLs: `http://localhost:8081/**` (and later `https://<deployed-url>/**`)
+  - Site URL: `http://localhost:8081` for now (the live URL once deployed, see section 9)
+  - Redirect URLs: `http://localhost:8081/**` (and the live URL, see section 9)
 
 ## 4. Run it
 
@@ -104,8 +104,32 @@ select program, name from public.templates where owner_id is null order by progr
 ```sql
 select record_type, count(*) from public.personal_records group by 1;  -- rows if you've logged workouts
 select id, public, file_size_limit from storage.buckets where id = 'progress-photos';  -- public = false
-select policyname from pg_policies where schemaname = 'storage' and policyname like 'progress-photos:%';  -- 4 rows
+select policyname from pg_policies where schemaname = 'storage' and policyname like 'progress-photos:%';  -- 4 rows (0 after the photo lock migration)
 ```
+
+### Photo lock migration + Edge Function
+
+- `20261102000000_photo_lock.sql`: PIN / password for progress photos (bcrypt via pgcrypto), 5-minute unlock tokens, 5 wrong tries → 15 minutes locked, Forgot PIN only after a fresh Google sign-in, Android device keys. Removes all direct app access to photo rows and files. Safe to run twice
+- If a migration fails halfway, re-run **that same file**. Don't re-run older files after newer ones (an old file can put back an older version of a function)
+
+```sql
+select count(*) from pg_policies where schemaname = 'storage' and policyname like 'progress-photos:%';  -- 0 now
+select has_table_privilege('authenticated', 'public.progress_photos', 'select');  -- false
+select proname from pg_proc where proname like 'photo\_%' order by 1;  -- photo_add … photo_unlock (13)
+```
+
+Then deploy the `photos` Edge Function (it signs photo URLs and stores uploads, only with a valid unlock token):
+
+```bash
+npx supabase@2.122.0 login
+npm run deploy:functions
+```
+
+`deploy:functions` runs `supabase functions deploy photos --no-verify-jwt --use-api --project-ref gwyymvaxgmpamtiuhoez`. No Docker needed. JWT verification at the gateway is off on purpose: the function forwards your login token to the database, which checks it (this also works with the new publishable/secret keys). It needs no secrets of its own; Supabase provides the project URL and keys to every function.
+
+No CLI? Dashboard → Edge Functions → Deploy a new function → name `photos`, add the files `index.ts` and `handler.ts` from `supabase/functions/photos/`, deploy, then in the function's settings turn **Enforce JWT verification** off.
+
+Check: in the app, open Progress photos → set a PIN → add a photo. Dashboard → Edge Functions → photos → Logs shows the calls.
 
 ## 6. Enable the custom access token hook
 
@@ -147,3 +171,76 @@ where id = (select id from auth.users where email = 'someone@example.com');
    ```
    Do the same for the **Confirm signup** template (first-time email users get that one).
 3. The built-in email sender only allows a few emails per hour. If codes stop arriving, set up custom SMTP (Authentication → Emails → SMTP Settings; e.g. Resend's free tier).
+
+## 8. Node and npm versions
+
+The lock file is written by **npm 11**. npm 10 writes it differently (it adds `"dev": true` to a few optional packages), which made `npm install` change `package-lock.json` and block `git pull`. `package.json` now requires npm 11 and `.npmrc` has `engine-strict=true`, so npm 10 stops with an error instead of rewriting the lock.
+
+```bash
+node -v   # 22.12 or newer; .nvmrc says 24
+npm -v    # must be 11.x
+```
+
+If npm is 10: `npm install -g npm@11`. If your lock file is already modified, reset it before pulling: `git checkout package-lock.json`, then `git pull`, then `npm install` (it won't change the file any more). EAS builds use Node 24.11.1 (set in `eas.json`), which ships with npm 11.
+
+## 9. Web app (Cloudflare Pages)
+
+The web app is a static site on Cloudflare Pages (free; custom response headers in `public/_headers`, applied to every file). URL: `https://lightweightbaby.pages.dev` (if that name is taken, use another and replace it everywhere below).
+
+### First deploy
+
+1. Create a free account at https://dash.cloudflare.com/sign-up (no card needed).
+2. Log in the CLI (opens the browser):
+   ```bash
+   npx wrangler@4.155.0 login
+   ```
+3. Create the project once:
+   ```bash
+   npx wrangler@4.155.0 pages project create lightweightbaby --production-branch main
+   ```
+4. Build and upload (uses the values in your `.env`):
+   ```bash
+   npm run deploy:web
+   ```
+   It prints the URL. With a different project name: `CF_PAGES_PROJECT=<name> npm run deploy:web`.
+
+### Dashboard changes for login on the live URL
+
+Supabase → Authentication → URL Configuration:
+
+- **Site URL**: `https://lightweightbaby.pages.dev`
+- **Redirect URLs**: add `https://lightweightbaby.pages.dev/**` (keep `http://localhost:8081/**` for development)
+
+Google Cloud Console → APIs & Services → Credentials → your **Web application** client:
+
+- **Authorized JavaScript origins**: add `https://lightweightbaby.pages.dev`
+- **Authorized redirect URIs**: no change (stays `https://gwyymvaxgmpamtiuhoez.supabase.co/auth/v1/callback`)
+- OAuth consent screen: while it's in "Testing", every Google account that signs in must be a **test user** (add your girlfriend's).
+
+Changes in Google can take a few minutes to apply.
+
+### Headers
+
+`public/_headers` sets `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options`, `Permissions-Policy` and long caching for the hashed JS/asset files. None of them affects Google login (a full-page redirect), Supabase calls or photo uploads (both normal CORS requests); this was checked with the production build at 390 px and 1440 px. HTML is served with `max-age=0, must-revalidate`, so a new deploy shows up the next time the app is opened.
+
+Stage 5 may add cross-origin isolation for offline SQLite on web (`Cross-Origin-Opener-Policy: same-origin` + `Cross-Origin-Embedder-Policy: require-corp`, the only form iPhone Safari supports). The comment in `_headers` explains it.
+
+### On the iPhone
+
+1. Open `https://lightweightbaby.pages.dev` in **Safari** (not Chrome; only Safari can install it).
+2. Share button → **Add to Home Screen** → the name shows "LightweightBaby" → **Add**.
+3. Open it from the new icon. It opens full screen, without Safari's address bar.
+4. **Sign in inside the home-screen app**, not in Safari: iPhone keeps their logins separate. If Google sign-in comes back to Safari instead of the app, use "Use email instead" and type the 6-digit code.
+5. Close the app (swipe it away) and open it again from the icon: it should still be signed in.
+
+iOS may shorten the name under the icon ("LightweightB…") if it doesn't fit.
+
+### Redeploying
+
+After pulling new code:
+
+```bash
+npm run deploy:web
+```
+
+Apply new migrations first (and `npm run deploy:functions` if `supabase/functions` changed). Every deploy also gets its own preview URL (`<hash>.lightweightbaby.pages.dev`); to sign in on those, add `https://*.lightweightbaby.pages.dev/**` to the Supabase Redirect URLs. Roll back in Cloudflare → Workers & Pages → lightweightbaby → Deployments → "Rollback" on an older deployment.

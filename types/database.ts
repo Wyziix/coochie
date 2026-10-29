@@ -387,6 +387,21 @@ export type Database = {
         }[];
       };
       weekly_overview: { Args: { p_from: string; p_to: string }; Returns: Json };
+      photo_lock_status: { Args: Record<string, never>; Returns: Json };
+      photo_setup: { Args: { p_kind: string; p_secret: string }; Returns: Json };
+      photo_unlock: {
+        Args: { p_secret?: string | null; p_device_key?: string | null };
+        Returns: Json;
+      };
+      photo_relock: { Args: { p_token: string }; Returns: undefined };
+      photo_change_secret: {
+        Args: { p_current: string; p_kind: string; p_secret: string };
+        Returns: Json;
+      };
+      photo_remove_secret: { Args: { p_current: string }; Returns: Json };
+      photo_reset_lock: { Args: Record<string, never>; Returns: undefined };
+      photo_register_device: { Args: { p_token: string; p_name?: string | null }; Returns: Json };
+      photo_forget_device: { Args: { p_id: string }; Returns: undefined };
       save_template: {
         Args: { p_id: string | null; p_template: Json; p_exercises: Json };
         Returns: Database['public']['Tables']['templates']['Row'];

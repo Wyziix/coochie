@@ -62,7 +62,13 @@
           "color": "#6E8EFF"
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "LightweightBaby uses Face ID to unlock your progress photos."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

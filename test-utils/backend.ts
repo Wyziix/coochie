@@ -461,13 +461,153 @@ export const bodyMock = {
 
 export const photosState = { list: [] as unknown[] };
 
-export const photosMock = {
-  fetchPhotos: jest.fn(async () => photosState.list),
-  uploadPhoto: jest.fn(async () => {}),
-  deletePhoto: jest.fn(async () => {}),
+// Photo lock: behaves like the SQL (photo_lock.test.sql): 5 wrong → 15 min lockout,
+// photos only with a token the "server" issued.
+export const photoLockState = {
+  state: 'pin' as 'setup' | 'pin' | 'password' | 'none',
+  secret: '2580',
+  failed: 0,
+  lockedUntil: null as number | null,
+  tokens: new Set<string>(),
+  issued: 0,
 };
 
+function issueToken() {
+  const token = `tok-${++photoLockState.issued}`;
+  photoLockState.tokens.add(token);
+  return { ok: true as const, token, expires_at: new Date(Date.now() + 5 * 60_000).toISOString() };
+}
+
+function checkSecret(secret: string | undefined) {
+  const s = photoLockState;
+  if (s.state === 'setup') return { ok: false as const, reason: 'setup' as const };
+  if (s.state === 'none') return { ok: true as const };
+  if (s.lockedUntil && s.lockedUntil > Date.now())
+    return {
+      ok: false as const,
+      reason: 'locked' as const,
+      locked_until: new Date(s.lockedUntil).toISOString(),
+    };
+  if (secret === s.secret) {
+    s.failed = 0;
+    s.lockedUntil = null;
+    return { ok: true as const };
+  }
+  s.failed += 1;
+  if (s.failed >= 5) {
+    s.failed = 0;
+    s.lockedUntil = Date.now() + 15 * 60_000;
+    return {
+      ok: false as const,
+      reason: 'locked' as const,
+      locked_until: new Date(s.lockedUntil).toISOString(),
+    };
+  }
+  return { ok: false as const, reason: 'wrong' as const, attempts_left: 5 - s.failed };
+}
+
+export const photoLockMock = {
+  fetchLockStatus: jest.fn(async () => ({
+    state: photoLockState.state,
+    locked_until:
+      photoLockState.lockedUntil && photoLockState.lockedUntil > Date.now()
+        ? new Date(photoLockState.lockedUntil).toISOString()
+        : null,
+    attempts_left: 5 - photoLockState.failed,
+    photo_count: photosState.list.length,
+    devices: 0,
+  })),
+  setupLock: jest.fn(async (kind: 'pin' | 'password', secret: string) => {
+    photoLockState.state = kind;
+    photoLockState.secret = secret;
+    return issueToken();
+  }),
+  unlockPhotos: jest.fn(async (input: { secret?: string; deviceKey?: string }) => {
+    const r = checkSecret(
+      input.deviceKey === 'device-key' && biometricsState.enabled
+        ? photoLockState.secret
+        : input.secret,
+    );
+    return r.ok ? issueToken() : r;
+  }),
+  relockPhotos: jest.fn(async (token: string) => {
+    photoLockState.tokens.delete(token);
+  }),
+  changeLockSecret: jest.fn(async (current: string, kind: 'pin' | 'password', secret: string) => {
+    const r = checkSecret(current);
+    if (!r.ok) return r;
+    photoLockState.state = kind;
+    photoLockState.secret = secret;
+    photoLockState.tokens.clear();
+    return { ok: true as const };
+  }),
+  removeLock: jest.fn(async (current: string) => {
+    const r = checkSecret(current);
+    if (!r.ok) return r;
+    photoLockState.state = 'none';
+    return { ok: true as const };
+  }),
+  resetLock: jest.fn(async () => {
+    photoLockState.state = 'setup';
+    photoLockState.tokens.clear();
+  }),
+  registerDevice: jest.fn(async () => ({ id: 'dev-1', key: 'device-key' })),
+  forgetDevice: jest.fn(async () => {}),
+};
+
+export const biometricsState = { supported: false, enabled: false };
+
+export const biometricsMock = {
+  biometricsSupported: jest.fn(async () => biometricsState.supported),
+  biometricsLabel: jest.fn(async () => 'fingerprint'),
+  isBiometricsEnabled: jest.fn(async () => biometricsState.enabled),
+  enableBiometrics: jest.fn(async () => {
+    biometricsState.enabled = true;
+  }),
+  readDeviceKey: jest.fn(async () => (biometricsState.enabled ? 'device-key' : null)),
+  clearLocalBiometrics: jest.fn(async () => {
+    biometricsState.enabled = false;
+  }),
+  disableBiometrics: jest.fn(async () => {
+    biometricsState.enabled = false;
+  }),
+};
+
+/** Forgot PIN without the real Google sign-in. */
+export const resetMock = {
+  WRONG_ACCOUNT: 'wrong account',
+  resetWithGoogle: jest.fn(async () => {
+    await photoLockMock.resetLock();
+    return 'done' as const;
+  }),
+  finishPendingReset: jest.fn(async () => 'none' as const),
+};
+
+function requireToken(token: string) {
+  if (!photoLockState.tokens.has(token)) {
+    const { PhotosLockedError } = jest.requireActual('@/lib/api/photos');
+    throw new PhotosLockedError();
+  }
+}
+
+export const photosMock = {
+  PhotosLockedError: jest.requireActual('@/lib/api/photos').PhotosLockedError,
+  fetchPhotos: jest.fn(async (token: string) => {
+    requireToken(token);
+    return photosState.list;
+  }),
+  uploadPhoto: jest.fn(async (token: string) => requireToken(token)),
+  deletePhoto: jest.fn(async (token: string) => requireToken(token)),
+};
+
+export function resetPhotoLock(state: typeof photoLockState.state = 'pin') {
+  Object.assign(photoLockState, { state, secret: '2580', failed: 0, lockedUntil: null, issued: 0 });
+  photoLockState.tokens = new Set();
+  Object.assign(biometricsState, { supported: false, enabled: false });
+}
+
 export function resetProgress() {
+  resetPhotoLock();
   progressState.newRecords = [];
   bodyState.list = [
     {

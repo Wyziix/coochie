@@ -23,6 +23,11 @@ jest.mock('@/lib/api/templates', () => require('@/test-utils/backend').templates
 jest.mock('@/lib/api/progress', () => require('@/test-utils/backend').progressMock);
 jest.mock('@/lib/api/body', () => require('@/test-utils/backend').bodyMock);
 jest.mock('@/lib/api/photos', () => require('@/test-utils/backend').photosMock);
+jest.mock('@/lib/api/photoLock', () => ({
+  ...jest.requireActual('@/lib/api/photoLock'),
+  ...require('@/test-utils/backend').photoLockMock,
+}));
+jest.mock('@/lib/photos/biometrics', () => require('@/test-utils/backend').biometricsMock);
 jest.mock('@/lib/images/compress', () => ({
   compressPhoto: jest.fn(async () => ({ uri: 'file:///small.jpg', width: 1200, height: 1600 })),
 }));
@@ -133,9 +138,15 @@ describe('body stats', () => {
   });
 });
 
+async function unlockPhotos() {
+  await fireEvent.changeText(await screen.findByLabelText('PIN'), '2580');
+  await fireEvent.press(screen.getByRole('button', { name: 'Unlock' }));
+}
+
 describe('progress photos', () => {
   it('picks, compresses and uploads a photo', async () => {
     await renderRouter(appDir, { initialUrl: '/photos' });
+    await unlockPhotos();
     await fireEvent.press(await screen.findByRole('button', { name: 'Add photo' }));
     await fireEvent.press(screen.getByRole('radio', { name: 'Side' }));
     await fireEvent.press(screen.getByRole('button', { name: 'Choose from library' }));
@@ -143,7 +154,7 @@ describe('progress photos', () => {
     const { compressPhoto } = jest.requireMock('@/lib/images/compress');
     expect(compressPhoto).toHaveBeenCalledWith(expect.objectContaining({ uri: 'file:///big.jpg' }));
     expect(photosMock.uploadPhoto).toHaveBeenCalledWith(
-      expect.any(String),
+      'tok-1',
       { uri: 'file:///small.jpg', width: 1200, height: 1600 },
       expect.objectContaining({ pose: 'side' }),
     );
@@ -151,6 +162,7 @@ describe('progress photos', () => {
 
   it('compares two photos', async () => {
     await renderRouter(appDir, { initialUrl: '/photos' });
+    await unlockPhotos();
     await fireEvent.press(await screen.findByRole('button', { name: 'Compare' }));
     await fireEvent.press(screen.getByRole('checkbox', { name: 'front photo, 2026-10-20' }));
     await fireEvent.press(screen.getByRole('checkbox', { name: 'front photo, 2026-09-01' }));
@@ -191,7 +203,7 @@ describe('exercise progress and overview', () => {
   it('lists body, photos, records and exercises on the Progress tab', async () => {
     await renderRouter(appDir, { initialUrl: '/progress' });
     expect(await screen.findByText('81 kg')).toBeOnTheScreen();
-    expect(screen.getByText('2 photos')).toBeOnTheScreen();
+    expect(await screen.findByText('Locked · 2 photos')).toBeOnTheScreen();
     expect(screen.getByText('was 95 kg')).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: 'Bench Press (Barbell) progress' }));
     await waitFor(() => expect(screen).toHavePathname('/exercises/ex-bench'));

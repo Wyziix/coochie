@@ -71,6 +71,11 @@ export default function ProfileScreen() {
       </Card>
 
       <Card>
+        <Text variant="heading">Privacy</Text>
+        <Button title="Photo lock" variant="secondary" onPress={() => router.push('/photo-lock')} />
+      </Card>
+
+      <Card>
         <Text variant="heading">Appearance</Text>
         <ThemeToggle />
       </Card>
