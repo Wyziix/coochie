@@ -5,6 +5,7 @@
 create role anon nologin;
 create role authenticated nologin;
 create role service_role nologin bypassrls;
+create role supabase_auth_admin nologin;
 
 create schema auth;
 grant usage on schema auth to anon, authenticated, service_role;
@@ -27,6 +28,10 @@ as $$
     ''
   )::uuid
 $$;
+
+create function auth.jwt() returns jsonb
+language sql stable
+as $$ select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb $$;
 
 create schema storage;
 grant usage on schema storage to anon, authenticated, service_role;

@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 
 import { AppProviders } from '@/components/providers/AppProviders';
 import { Button, ErrorState, LoadingState, Screen } from '@/components/ui';
+import { RestTimerWatcher } from '@/components/workout/RestTimerWatcher';
 import { useAuthListener } from '@/hooks/useAuthListener';
 import { useProfile } from '@/hooks/useProfile';
 import { useThemeHydrated } from '@/hooks/useThemeHydrated';
@@ -19,6 +20,7 @@ export default function RootLayout() {
   return (
     <AppProviders>
       <RootNavigator />
+      <RestTimerWatcher />
     </AppProviders>
   );
 }
@@ -63,6 +65,18 @@ function RootNavigator() {
           name="edit-profile"
           options={{ headerShown: true, title: 'Edit profile', presentation: 'modal' }}
         />
+        <Stack.Screen name="workouts/active" options={{ gestureEnabled: false }} />
+        <Stack.Screen name="workouts/[id]" options={{ headerShown: true, title: 'Workout' }} />
+        <Stack.Screen
+          name="workouts/plates"
+          options={{ headerShown: true, title: 'Plate calculator', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="exercises/pick"
+          options={{ headerShown: true, title: 'Add exercises', presentation: 'modal' }}
+        />
+        <Stack.Screen name="exercises/new" options={{ headerShown: true, title: 'New exercise' }} />
+        <Stack.Screen name="exercises/[id]" options={{ headerShown: true, title: 'Exercise' }} />
       </Stack.Protected>
     </Stack>
   );

@@ -34,7 +34,7 @@ export function OptionList<T extends string>({
           <Pressable
             key={option.value}
             accessibilityRole="radio"
-            accessibilityState={{ selected }}
+            aria-checked={selected}
             accessibilityLabel={option.label}
             onPress={() => onChange(option.value)}
             style={({ pressed }) => [

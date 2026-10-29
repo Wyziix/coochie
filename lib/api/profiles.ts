@@ -2,7 +2,11 @@ import { getSupabase } from '@/lib/supabase';
 import type { Tables, TablesUpdate } from '@/types/database';
 
 export type Profile = Tables<'profiles'>;
-export type ProfileUpdate = Omit<TablesUpdate<'profiles'>, 'id' | 'created_at' | 'updated_at'>;
+// role is left out on purpose: the server rejects role changes from the app.
+export type ProfileUpdate = Omit<
+  TablesUpdate<'profiles'>,
+  'id' | 'role' | 'created_at' | 'updated_at'
+>;
 
 export class UsernameTakenError extends Error {
   constructor() {

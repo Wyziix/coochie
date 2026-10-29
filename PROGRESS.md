@@ -93,8 +93,59 @@ Checks: typecheck, lint, prettier, 47 Jest tests, 25 DB tests. Web and native bu
 
 ### Known issues / to check
 
-- Not tested against the real Supabase project yet: I need the **Supabase project URL** (only the publishable key was given)
-- Google sign-in can't be tested here (needs your Google Cloud clients). Follow `docs/SETUP.md`
+- Tested by you against the real project (`gwyymvaxgmpamtiuhoez`): Google login on web works, migration applied
 - iPhone PWA + Google redirect: the redirect flow is the right approach for home-screen web apps, but iOS standalone mode sometimes opens OAuth in a separate browser sheet. Test it early on her phone once the web app is reachable; if it's flaky, the fallback is an email magic link for web
 - Stage 5 (offline on web): expo-sqlite on web needs extra HTTP headers (COOP/COEP). This affects which host we pick in Stage 13
 - PWA icons are placeholders; real icon in Stage 13
+
+## Stage 1 additions – roles, secure session, email login
+
+Built:
+
+- **Roles** (`20261030000000_roles_admin.sql`): `profiles.role` (`user` default / `admin`). Users can't set or change it: the RLS insert/update policies require the role to stay what it was, and a trigger blocks it as a second layer. Only SQL (postgres) or the service key can change roles
+- `is_admin()` for policies and admin functions. It reads the table, not the JWT, so removing admin works immediately
+- **Custom access token hook** `custom_access_token_hook` adds `user_role` to the JWT (enable it in the dashboard, see `docs/SETUP.md` §6)
+- **kopenkin.ne@gmail.com made admin** by email match in the migration
+- **`admin_actions` log** (admin id, action, target type/id, details, created_at). Only admins can read it; nobody can write it directly. Every admin function calls `log_admin_action()`, which also raises for non-admins (rolling back the change)
+- **Admin tab**: visible to admins only (`Tabs.Protected`), `/admin` redirects others. Sections for later stages listed as "coming in stage X"
+- **Secure session on native** (`lib/auth/sessionStorage.ts`): LargeSecureStore pattern. A fresh AES-256 key per write goes in SecureStore (Keychain / Keystore), and the session encrypted with AES-CTR goes in AsyncStorage. Sessions saved by older builds are read once and re-saved encrypted. Web keeps localStorage
+- **Email login**: "Use email instead" → 6-digit code by email (`signInWithOtp` + `verifyOtp`). The email also has a magic link that works when opened in the same browser. The code is what makes it work in the iPhone home-screen app
+
+DB tests: role rules — users can't promote themselves (checked with and without the trigger), non-admins can't call any admin function, read the log or write it, the hook adds the right claim, demotion is immediate.
+
+## Stage 2 – Exercise library and workout logging
+
+Built:
+
+- **Database** (`20261030010000_exercises_workouts.sql`):
+  - `exercises`: 106 global exercises (name, primary/secondary muscles, equipment, type weights/bodyweight/cardio/timed, how-to, default rest). Users' custom exercises have `owner_id` and are visible only to them. Global ones are written only through `admin_save_exercise` / `admin_set_exercise_hidden` (admin check + log)
+  - Hidden exercises stay readable so old workouts keep their names; the picker leaves them out
+  - `user_exercise_settings`: rest time per user per exercise
+  - `workouts` + `workout_sets` with RLS. IDs are made on the device so retries can't duplicate (ready for Stage 5 sync)
+  - `save_workout()`: saves workout + sets in one transaction, idempotent on the workout id; duration and volume are computed on the server
+  - `last_exercise_sets()`: sets from the most recent workout per exercise ("last time")
+- **Workout tab**: start an empty workout, resume card for one in progress, last 5 workouts
+- **Active workout** (`/workouts/active`): editable name, timer, live set count and volume. Per exercise: set rows with "previous" column (tap to copy), weight/reps (or time/distance for timed and cardio), done checkbox. Empty fields use last time's values when you tick done. Set menu: type (warm-up/normal/drop/failure), optional RPE, delete. Exercise menu: rest time (saved for next time), how-to, remove
+- **Rest timer**: starts when a set is ticked, ±15 s, skip. Native: local notification even with the app in the background, plus haptics in the app. **Web: beep (Web Audio) + vibration where supported** (Android Chrome; iPhones have no vibration API). Survives reload; if it ended while closed, it clears quietly
+- **Plate calculator** (kg and lbs plates, bar choice, closest load if not exact)
+- **Units**: everything stored in kg / seconds / meters; shown in kg or lbs (km or miles) from the profile. A workout keeps the unit it started with
+- **Finish**: confirms, warns about unfinished sets (not saved), saves, shows a summary. **Discard** with confirmation. If saving fails, the workout stays on the device
+- **Active workout survives closing the app or reloading the page** (persisted Zustand store: AsyncStorage / localStorage)
+- **Exercise picker**: search (all words, accent-insensitive), muscle and equipment filters, multi-select, how-to page, create custom exercise
+- **Admin → Exercise library**: list incl. hidden, add, edit, hide/unhide global exercises
+
+Checks: typecheck, lint, prettier, 83 Jest tests, 72 DB checks (`npm run test:db`). Native + web bundles export. Web tested in a headless iPhone-sized browser (fake backend): email-code login, admin tab, picker, logging sets, **page reload mid-workout (sets and running timer kept)**, rest-end beep + vibration, plate calculator, rest setting saved, finish with unfinished-set warning, summary, admin hide. No page errors.
+
+### Decisions
+
+- Only completed sets are saved; you're warned about the rest on finish
+- Inputs keep what you typed (strings in the workout's unit) and convert on save, so switching focus never reformats your numbers
+- Admin UI check uses `profiles.role` (fresh); the JWT claim is there for Edge Functions later
+- Switched accessibility props to `aria-*` (react-native-web ignores `accessibilityState`), so screen readers on web see checked/selected states
+- Workout history beyond the last 5, editing/deleting past workouts, and templates are Stage 3
+
+### Known issues / to check
+
+- Rest notification on Android needs the dev build (not Expo Go) and notification permission; asked when you start the first workout
+- On iPhone (web app), the beep only plays while the app is open and the screen is on. iOS doesn't allow background alerts for web apps
+- The exercise list is fetched online; offline use comes in Stage 5

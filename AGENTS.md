@@ -47,4 +47,4 @@ Docs: https://docs.expo.dev/eas/index.md
 - No secrets in app code. Only `EXPO_PUBLIC_*` env vars reach the app; server secrets live in Supabase Edge Function secrets.
 - UI: use `useTheme()` and the components in `components/ui`; no hard-coded colors in screens.
 - Every Supabase table has RLS enabled in the migration that creates it. Add cases to `supabase/tests/*.test.sql` and run `npm run test:db`.
-- Web is a first-class target (iPhone users use the PWA). Every feature must work on web or be hidden/disabled cleanly there; never crash on web. Use `.web.ts` files for platform-specific code, and don't use `Alert.alert` directly (use `lib/confirm.ts`).
+- Web is a first-class target (iPhone users use the PWA). Every feature must work on web or be hidden/disabled cleanly there; never crash on web. Use `.web.ts` files for platform-specific code, and don't use `Alert.alert` directly (use `lib/confirm.ts`). Use `aria-*` props (`aria-checked`, `aria-disabled`, ...) instead of `accessibilityState`, which react-native-web ignores.

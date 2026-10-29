@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import { EmailSignIn } from '@/components/auth/EmailSignIn';
 import { Button, Card, Screen, Text } from '@/components/ui';
 import { useTheme } from '@/hooks/useTheme';
 import { signInWithGoogle } from '@/lib/auth';
@@ -10,6 +11,7 @@ export default function SignInScreen() {
   const theme = useTheme();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showEmail, setShowEmail] = useState(false);
 
   async function onSignIn() {
     setError(null);
@@ -25,7 +27,7 @@ export default function SignInScreen() {
   }
 
   return (
-    <Screen edges={['top', 'bottom']}>
+    <Screen scroll edges={['top', 'bottom']}>
       <View style={[styles.hero, { gap: theme.spacing.sm }]}>
         <Text variant="title" accessibilityRole="header" style={styles.center}>
           LightweightBaby
@@ -59,6 +61,16 @@ export default function SignInScreen() {
           disabled={!isSupabaseConfigured}
           fullWidth
         />
+        {showEmail ? (
+          <EmailSignIn disabled={!isSupabaseConfigured} />
+        ) : (
+          <Button
+            title="Use email instead"
+            variant="ghost"
+            onPress={() => setShowEmail(true)}
+            disabled={!isSupabaseConfigured}
+          />
+        )}
       </View>
     </Screen>
   );

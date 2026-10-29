@@ -8,3 +8,12 @@ jest.mock('@expo/vector-icons/Ionicons', () => {
   const Icon = ({ name }: { name: string }) => <Text>{`icon:${name}`}</Text>;
   return { __esModule: true, default: Icon };
 });
+
+// expo-crypto's native module isn't available in Jest; use Node's crypto.
+jest.mock('expo-crypto', () => {
+  const nodeCrypto = require('crypto');
+  return {
+    randomUUID: () => nodeCrypto.randomUUID(),
+    getRandomBytes: (n: number) => new Uint8Array(nodeCrypto.randomBytes(n)),
+  };
+});

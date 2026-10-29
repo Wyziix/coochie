@@ -1,9 +1,9 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { AppState, Platform } from 'react-native';
 
 import type { Database } from '@/types/database';
 
+import { sessionStorage } from './auth/sessionStorage';
 import { env, isSupabaseConfigured } from './env';
 
 let client: SupabaseClient<Database> | null = null;
@@ -20,7 +20,8 @@ export function getSupabase(): SupabaseClient<Database> {
 
   client = createClient<Database>(env.supabaseUrl, env.supabasePublishableKey, {
     auth: {
-      storage: AsyncStorage,
+      // Encrypted with a key in SecureStore on native; localStorage on web.
+      storage: sessionStorage,
       autoRefreshToken: true,
       persistSession: true,
       // Web signs in with a Google redirect that comes back with ?code=...,

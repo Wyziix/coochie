@@ -27,7 +27,7 @@ export function Screen({
       {header ? <View style={{ paddingHorizontal: padding }}>{header}</View> : null}
       {scroll ? (
         <ScrollView
-          contentContainerStyle={{ padding, paddingTop: 0, gap: theme.spacing.lg }}
+          contentContainerStyle={{ flexGrow: 1, padding, paddingTop: 0, gap: theme.spacing.lg }}
           keyboardShouldPersistTaps="handled"
         >
           {children}

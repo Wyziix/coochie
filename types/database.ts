@@ -19,6 +19,7 @@ export type Database = {
           bodyweight_kg: number | null;
           height_cm: number | null;
           onboarding_completed_at: string | null;
+          role: Database['public']['Enums']['app_role'];
           created_at: string;
           updated_at: string;
         };
@@ -34,6 +35,7 @@ export type Database = {
           bodyweight_kg?: number | null;
           height_cm?: number | null;
           onboarding_completed_at?: string | null;
+          role?: Database['public']['Enums']['app_role'];
           created_at?: string;
           updated_at?: string;
         };
@@ -49,10 +51,136 @@ export type Database = {
           bodyweight_kg?: number | null;
           height_cm?: number | null;
           onboarding_completed_at?: string | null;
+          role?: Database['public']['Enums']['app_role'];
           created_at?: string;
           updated_at?: string;
         };
         Relationships: [];
+      };
+      admin_actions: {
+        Row: {
+          id: number;
+          admin_id: string | null;
+          action: string;
+          target_type: string | null;
+          target_id: string | null;
+          details: Json;
+          created_at: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      exercises: {
+        Row: {
+          id: string;
+          slug: string | null;
+          name: string;
+          primary_muscle: Database['public']['Enums']['muscle_group'];
+          secondary_muscles: Database['public']['Enums']['muscle_group'][];
+          equipment: Database['public']['Enums']['equipment'];
+          type: Database['public']['Enums']['exercise_type'];
+          instructions: string | null;
+          default_rest_seconds: number;
+          owner_id: string | null;
+          is_hidden: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          primary_muscle: Database['public']['Enums']['muscle_group'];
+          secondary_muscles?: Database['public']['Enums']['muscle_group'][];
+          equipment: Database['public']['Enums']['equipment'];
+          type: Database['public']['Enums']['exercise_type'];
+          instructions?: string | null;
+          default_rest_seconds?: number;
+          owner_id: string;
+        };
+        Update: {
+          name?: string;
+          primary_muscle?: Database['public']['Enums']['muscle_group'];
+          secondary_muscles?: Database['public']['Enums']['muscle_group'][];
+          equipment?: Database['public']['Enums']['equipment'];
+          type?: Database['public']['Enums']['exercise_type'];
+          instructions?: string | null;
+          default_rest_seconds?: number;
+        };
+        Relationships: [];
+      };
+      user_exercise_settings: {
+        Row: {
+          user_id: string;
+          exercise_id: string;
+          rest_seconds: number;
+          updated_at: string;
+        };
+        Insert: {
+          user_id?: string;
+          exercise_id: string;
+          rest_seconds: number;
+        };
+        Update: {
+          rest_seconds?: number;
+        };
+        Relationships: [];
+      };
+      workouts: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          started_at: string;
+          ended_at: string;
+          duration_seconds: number;
+          total_volume_kg: number;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: never;
+        Update: {
+          name?: string;
+          notes?: string | null;
+        };
+        Relationships: [];
+      };
+      workout_sets: {
+        Row: {
+          id: string;
+          workout_id: string;
+          user_id: string;
+          exercise_id: string;
+          exercise_order: number;
+          set_order: number;
+          set_type: Database['public']['Enums']['set_type'];
+          weight_kg: number | null;
+          reps: number | null;
+          rpe: number | null;
+          duration_seconds: number | null;
+          distance_m: number | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [
+          {
+            foreignKeyName: 'workout_sets_exercise_id_fkey';
+            columns: ['exercise_id'];
+            isOneToOne: false;
+            referencedRelation: 'exercises';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'workout_sets_workout_id_fkey';
+            columns: ['workout_id'];
+            isOneToOne: false;
+            referencedRelation: 'workouts';
+            referencedColumns: ['id'];
+          },
+        ];
       };
     };
     Views: { [_ in never]: never };
@@ -61,11 +189,80 @@ export type Database = {
         Args: { name: string };
         Returns: boolean;
       };
+      is_admin: { Args: Record<string, never>; Returns: boolean };
+      admin_save_exercise: {
+        Args: {
+          p_id: string | null;
+          p_name: string;
+          p_primary_muscle: Database['public']['Enums']['muscle_group'];
+          p_secondary_muscles: Database['public']['Enums']['muscle_group'][];
+          p_equipment: Database['public']['Enums']['equipment'];
+          p_type: Database['public']['Enums']['exercise_type'];
+          p_instructions: string | null;
+          p_default_rest_seconds: number;
+        };
+        Returns: Database['public']['Tables']['exercises']['Row'];
+      };
+      admin_set_exercise_hidden: {
+        Args: { p_id: string; p_hidden: boolean };
+        Returns: Database['public']['Tables']['exercises']['Row'];
+      };
+      save_workout: {
+        Args: { p_workout: Json; p_sets: Json };
+        Returns: Database['public']['Tables']['workouts']['Row'];
+      };
+      last_exercise_sets: {
+        Args: { p_exercise_ids: string[] };
+        Returns: {
+          exercise_id: string;
+          set_index: number;
+          set_type: Database['public']['Enums']['set_type'];
+          weight_kg: number | null;
+          reps: number | null;
+          rpe: number | null;
+          duration_seconds: number | null;
+          distance_m: number | null;
+          performed_at: string;
+        }[];
+      };
     };
     Enums: {
       weight_unit: 'kg' | 'lbs';
       training_goal: 'strength' | 'hypertrophy' | 'fat_loss' | 'general_fitness';
       experience_level: 'beginner' | 'intermediate' | 'advanced';
+      app_role: 'user' | 'admin';
+      muscle_group:
+        | 'chest'
+        | 'back'
+        | 'lower_back'
+        | 'traps'
+        | 'shoulders'
+        | 'biceps'
+        | 'triceps'
+        | 'forearms'
+        | 'abs'
+        | 'obliques'
+        | 'quads'
+        | 'hamstrings'
+        | 'glutes'
+        | 'calves'
+        | 'adductors'
+        | 'full_body'
+        | 'cardio';
+      equipment:
+        | 'barbell'
+        | 'dumbbell'
+        | 'machine'
+        | 'cable'
+        | 'bodyweight'
+        | 'kettlebell'
+        | 'band'
+        | 'smith_machine'
+        | 'ez_bar'
+        | 'cardio_machine'
+        | 'other';
+      exercise_type: 'weights' | 'bodyweight' | 'cardio' | 'timed';
+      set_type: 'warmup' | 'normal' | 'drop' | 'failure';
     };
     CompositeTypes: { [_ in never]: never };
   };

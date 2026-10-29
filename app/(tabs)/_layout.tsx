@@ -3,21 +3,36 @@ import { Tabs } from 'expo-router/js-tabs';
 import type { ComponentProps } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useIsAdmin } from '@/hooks/useIsAdmin';
 import { useTheme } from '@/hooks/useTheme';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
-const tabs: { name: string; title: string; icon: IconName; iconFocused: IconName }[] = [
+const tabs: {
+  name: string;
+  title: string;
+  icon: IconName;
+  iconFocused: IconName;
+  adminOnly?: boolean;
+}[] = [
   { name: 'index', title: 'Home', icon: 'home-outline', iconFocused: 'home' },
   { name: 'workout', title: 'Workout', icon: 'barbell-outline', iconFocused: 'barbell' },
   { name: 'progress', title: 'Progress', icon: 'stats-chart-outline', iconFocused: 'stats-chart' },
   { name: 'ranking', title: 'Ranking', icon: 'trophy-outline', iconFocused: 'trophy' },
   { name: 'profile', title: 'Profile', icon: 'person-outline', iconFocused: 'person' },
+  {
+    name: 'admin',
+    title: 'Admin',
+    icon: 'shield-checkmark-outline',
+    iconFocused: 'shield-checkmark',
+    adminOnly: true,
+  },
 ];
 
 export default function TabLayout() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const isAdmin = useIsAdmin();
 
   return (
     <Tabs
@@ -36,22 +51,32 @@ export default function TabLayout() {
         tabBarLabelStyle: { flexShrink: 0 },
       }}
     >
-      {tabs.map((tab) => (
-        <Tabs.Screen
-          key={tab.name}
-          name={tab.name}
-          options={{
-            title: tab.title,
-            tabBarIcon: ({ size, focused }) => (
-              <Ionicons
-                name={focused ? tab.iconFocused : tab.icon}
-                size={size}
-                color={focused ? theme.colors.primary : theme.colors.tabInactive}
-              />
-            ),
-          }}
-        />
-      ))}
+      {tabs.map((tab) => {
+        const screen = (
+          <Tabs.Screen
+            key={tab.name}
+            name={tab.name}
+            options={{
+              title: tab.title,
+              tabBarIcon: ({ size, focused }) => (
+                <Ionicons
+                  name={focused ? tab.iconFocused : tab.icon}
+                  size={size}
+                  color={focused ? theme.colors.primary : theme.colors.tabInactive}
+                />
+              ),
+            }}
+          />
+        );
+        // Admin tab exists only for admins. Cosmetic: the server checks the role.
+        return tab.adminOnly ? (
+          <Tabs.Protected key={tab.name} guard={isAdmin}>
+            {screen}
+          </Tabs.Protected>
+        ) : (
+          screen
+        );
+      })}
     </Tabs>
   );
 }
