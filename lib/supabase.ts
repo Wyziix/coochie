@@ -1,0 +1,39 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { AppState, Platform } from 'react-native';
+
+import type { Database } from '@/types/database';
+
+import { env, isSupabaseConfigured } from './env';
+
+let client: SupabaseClient<Database> | null = null;
+
+// Created lazily so the app can boot (and tests can run) before Supabase keys
+// are set. Anything that talks to the backend should call this.
+export function getSupabase(): SupabaseClient<Database> {
+  if (client) return client;
+  if (!isSupabaseConfigured) {
+    throw new Error(
+      'Supabase is not configured. Copy .env.example to .env and set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY.',
+    );
+  }
+
+  client = createClient<Database>(env.supabaseUrl, env.supabasePublishableKey, {
+    auth: {
+      storage: AsyncStorage,
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: false,
+    },
+  });
+
+  // Refresh tokens only while the app is in the foreground.
+  if (Platform.OS !== 'web') {
+    AppState.addEventListener('change', (state) => {
+      if (state === 'active') client?.auth.startAutoRefresh();
+      else client?.auth.stopAutoRefresh();
+    });
+  }
+
+  return client;
+}
