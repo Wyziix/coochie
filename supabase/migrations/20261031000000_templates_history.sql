@@ -1,5 +1,8 @@
 -- Stage 3: workout templates, ready-made programs, and server-only workout
 -- writes (edit/delete recalculate on the server).
+--
+-- idempotent: safe to run again if a previous run stopped halfway (e.g. in the
+-- SQL Editor). Every statement checks before it creates or drops.
 
 -- ---------------------------------------------------------------------------
 -- Workouts: clients may only read. Every write goes through save_workout /
@@ -7,15 +10,16 @@
 -- can never store its own totals (PRs in Stage 4 and points in Stage 8 build
 -- on these numbers).
 -- ---------------------------------------------------------------------------
-drop policy "workouts: own" on public.workouts;
+drop policy if exists "workouts: own" on public.workouts;
+drop policy if exists "workouts: read own" on public.workouts;
 create policy "workouts: read own"
 on public.workouts for select
 to authenticated
 using (user_id = (select auth.uid()));
 
-drop policy "workout_sets: write own" on public.workout_sets;
-drop policy "workout_sets: update own" on public.workout_sets;
-drop policy "workout_sets: delete own" on public.workout_sets;
+drop policy if exists "workout_sets: write own" on public.workout_sets;
+drop policy if exists "workout_sets: update own" on public.workout_sets;
+drop policy if exists "workout_sets: delete own" on public.workout_sets;
 
 -- Called by every workout write after the change. Stage 4 (personal records)
 -- and Stage 8 (points) recompute their data for this user here, so edits and
@@ -36,7 +40,7 @@ revoke execute on function public.after_workout_change(uuid, uuid) from public, 
 -- ---------------------------------------------------------------------------
 -- Templates. owner_id null = ready-made (managed by admins).
 -- ---------------------------------------------------------------------------
-create table public.templates (
+create table if not exists public.templates (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid references auth.users (id) on delete cascade,
   name text not null,
@@ -52,13 +56,14 @@ create table public.templates (
   constraint templates_program_length check (char_length(program) <= 60)
 );
 
-create index templates_owner_idx on public.templates (owner_id);
+create index if not exists templates_owner_idx on public.templates (owner_id);
 
+drop trigger if exists templates_set_updated_at on public.templates;
 create trigger templates_set_updated_at
 before update on public.templates
 for each row execute function public.set_updated_at();
 
-create table public.template_exercises (
+create table if not exists public.template_exercises (
   id uuid primary key default gen_random_uuid(),
   template_id uuid not null references public.templates (id) on delete cascade,
   exercise_id uuid not null references public.exercises (id) on delete restrict,
@@ -79,12 +84,13 @@ create table public.template_exercises (
   constraint template_exercises_rest_range check (rest_seconds between 0 and 900)
 );
 
-create index template_exercises_template_idx on public.template_exercises (template_id, position);
+create index if not exists template_exercises_template_idx on public.template_exercises (template_id, position);
 
 alter table public.templates enable row level security;
 alter table public.template_exercises enable row level security;
 
 -- Users see ready-made (unless hidden) and their own; admins also see hidden ones.
+drop policy if exists "templates: read ready-made and own" on public.templates;
 create policy "templates: read ready-made and own"
 on public.templates for select
 to authenticated
@@ -93,11 +99,13 @@ using (
   or (owner_id is null and (not is_hidden or (select public.is_admin())))
 );
 
+drop policy if exists "templates: delete own" on public.templates;
 create policy "templates: delete own"
 on public.templates for delete
 to authenticated
 using (owner_id = (select auth.uid()));
 
+drop policy if exists "template_exercises: read visible templates" on public.template_exercises;
 create policy "template_exercises: read visible templates"
 on public.template_exercises for select
 to authenticated
@@ -108,7 +116,7 @@ using (exists (select 1 from public.templates t where t.id = template_id));
 
 -- Workouts remember which template they came from.
 alter table public.workouts
-  add column template_id uuid references public.templates (id) on delete set null;
+  add column if not exists template_id uuid references public.templates (id) on delete set null;
 
 -- ---------------------------------------------------------------------------
 -- Shared template writer. Validates and replaces the exercise list. Only
@@ -452,49 +460,47 @@ grant execute on function public.delete_workout(uuid) to authenticated;
 -- ---------------------------------------------------------------------------
 -- Seed: ready-made templates.
 -- ---------------------------------------------------------------------------
-create or replace function pg_temp.seed_template(
-  p_program text, p_position int, p_name text, p_notes text, p_items jsonb
-) returns void language plpgsql as $$
+-- Items: [exercise slug, sets, reps min, reps max, duration seconds].
+-- Skips any ready-made template that already exists (same program + name).
+do $$
 declare
+  t jsonb;
   tid uuid;
 begin
-  insert into public.templates (owner_id, name, notes, program, position)
-  values (null, p_name, p_notes, p_program, p_position)
-  returning id into tid;
+  for t in select * from jsonb_array_elements('[
+  {"program": "Push Pull Legs", "position": 1, "name": "Push", "notes": "Chest, shoulders, triceps.",
+   "items": [["barbell_bench_press", 4, 6, 8, null], ["overhead_press", 3, 8, 10, null], ["incline_dumbbell_press", 3, 8, 12, null], ["lateral_raise", 3, 12, 15, null], ["tricep_pushdown", 3, 10, 12, null], ["overhead_tricep_extension", 3, 10, 12, null]]},
+  {"program": "Push Pull Legs", "position": 2, "name": "Pull", "notes": "Back, rear delts, biceps.",
+   "items": [["deadlift", 3, 5, null, null], ["pull_up", 3, 6, 10, null], ["barbell_row", 3, 8, 10, null], ["face_pull", 3, 12, 15, null], ["barbell_curl", 3, 8, 12, null], ["hammer_curl", 3, 10, 12, null]]},
+  {"program": "Push Pull Legs", "position": 3, "name": "Legs", "notes": "Quads, hamstrings, glutes, calves.",
+   "items": [["back_squat", 4, 6, 8, null], ["romanian_deadlift", 3, 8, 10, null], ["leg_press", 3, 10, 12, null], ["lying_leg_curl", 3, 10, 12, null], ["standing_calf_raise", 4, 12, 15, null]]},
+  {"program": "Upper / Lower", "position": 1, "name": "Upper", "notes": "Upper body, heavy compounds first.",
+   "items": [["barbell_bench_press", 4, 6, 8, null], ["barbell_row", 4, 6, 8, null], ["seated_dumbbell_press", 3, 8, 10, null], ["lat_pulldown", 3, 8, 12, null], ["dumbbell_curl", 2, 10, 12, null], ["tricep_pushdown", 2, 10, 12, null]]},
+  {"program": "Upper / Lower", "position": 2, "name": "Lower", "notes": "Lower body and core.",
+   "items": [["back_squat", 4, 6, 8, null], ["romanian_deadlift", 3, 8, 10, null], ["bulgarian_split_squat", 3, 8, 10, null], ["seated_leg_curl", 3, 10, 12, null], ["standing_calf_raise", 3, 12, 15, null], ["plank", 3, null, null, 45]]},
+  {"program": "Full Body", "position": 1, "name": "Full Body", "notes": "Whole body in one session, 2–3× a week.",
+   "items": [["back_squat", 3, 6, 8, null], ["barbell_bench_press", 3, 6, 8, null], ["barbell_row", 3, 8, 10, null], ["overhead_press", 2, 8, 10, null], ["romanian_deadlift", 2, 8, 10, null], ["plank", 2, null, null, 45]]},
+  {"program": "5×5", "position": 1, "name": "5×5 – A", "notes": "Alternate A and B. Add weight each session when all 5×5 are done.",
+   "items": [["back_squat", 5, 5, null, null], ["barbell_bench_press", 5, 5, null, null], ["barbell_row", 5, 5, null, null]]},
+  {"program": "5×5", "position": 2, "name": "5×5 – B", "notes": "Alternate A and B. Deadlift is 1×5.",
+   "items": [["back_squat", 5, 5, null, null], ["overhead_press", 5, 5, null, null], ["deadlift", 1, 5, null, null]]}
+  ]'::jsonb)
+  loop
+    continue when exists (
+      select 1 from public.templates
+      where owner_id is null and program = t ->> 'program' and name = t ->> 'name'
+    );
 
-  insert into public.template_exercises (template_id, exercise_id, position, target_sets, target_reps_min, target_reps_max, target_duration_seconds)
-  select tid, x.id, (i.ord - 1)::smallint, (i.item ->> 1)::smallint,
-         nullif(i.item ->> 2, '')::smallint, nullif(i.item ->> 3, '')::smallint, nullif(i.item ->> 4, '')::integer
-  from jsonb_array_elements(p_items) with ordinality as i(item, ord)
-  join public.exercises x on x.slug = i.item ->> 0;
+    insert into public.templates (owner_id, name, notes, program, position)
+    values (null, t ->> 'name', t ->> 'notes', t ->> 'program', (t ->> 'position')::smallint)
+    returning id into tid;
+
+    insert into public.template_exercises (
+      template_id, exercise_id, position, target_sets, target_reps_min, target_reps_max, target_duration_seconds
+    )
+    select tid, x.id, (i.ord - 1)::smallint, (i.item ->> 1)::smallint,
+           (i.item ->> 2)::smallint, (i.item ->> 3)::smallint, (i.item ->> 4)::integer
+    from jsonb_array_elements(t -> 'items') with ordinality as i (item, ord)
+    join public.exercises x on x.slug = i.item ->> 0;
+  end loop;
 end $$;
-
--- Items: [slug, sets, reps_min, reps_max, duration_seconds]
-select pg_temp.seed_template('Push Pull Legs', 1, 'Push', 'Chest, shoulders, triceps.', '[
-  ["barbell_bench_press", 4, 6, 8, null], ["overhead_press", 3, 8, 10, null],
-  ["incline_dumbbell_press", 3, 8, 12, null], ["lateral_raise", 3, 12, 15, null],
-  ["tricep_pushdown", 3, 10, 12, null], ["overhead_tricep_extension", 3, 10, 12, null]]');
-select pg_temp.seed_template('Push Pull Legs', 2, 'Pull', 'Back, rear delts, biceps.', '[
-  ["deadlift", 3, 5, null, null], ["pull_up", 3, 6, 10, null], ["barbell_row", 3, 8, 10, null],
-  ["face_pull", 3, 12, 15, null], ["barbell_curl", 3, 8, 12, null], ["hammer_curl", 3, 10, 12, null]]');
-select pg_temp.seed_template('Push Pull Legs', 3, 'Legs', 'Quads, hamstrings, glutes, calves.', '[
-  ["back_squat", 4, 6, 8, null], ["romanian_deadlift", 3, 8, 10, null], ["leg_press", 3, 10, 12, null],
-  ["lying_leg_curl", 3, 10, 12, null], ["standing_calf_raise", 4, 12, 15, null]]');
-
-select pg_temp.seed_template('Upper / Lower', 1, 'Upper', 'Upper body, heavy compounds first.', '[
-  ["barbell_bench_press", 4, 6, 8, null], ["barbell_row", 4, 6, 8, null],
-  ["seated_dumbbell_press", 3, 8, 10, null], ["lat_pulldown", 3, 8, 12, null],
-  ["dumbbell_curl", 2, 10, 12, null], ["tricep_pushdown", 2, 10, 12, null]]');
-select pg_temp.seed_template('Upper / Lower', 2, 'Lower', 'Lower body and core.', '[
-  ["back_squat", 4, 6, 8, null], ["romanian_deadlift", 3, 8, 10, null],
-  ["bulgarian_split_squat", 3, 8, 10, null], ["seated_leg_curl", 3, 10, 12, null],
-  ["standing_calf_raise", 3, 12, 15, null], ["plank", 3, null, null, 45]]');
-
-select pg_temp.seed_template('Full Body', 1, 'Full Body', 'Whole body in one session, 2–3× a week.', '[
-  ["back_squat", 3, 6, 8, null], ["barbell_bench_press", 3, 6, 8, null], ["barbell_row", 3, 8, 10, null],
-  ["overhead_press", 2, 8, 10, null], ["romanian_deadlift", 2, 8, 10, null], ["plank", 2, null, null, 45]]');
-
-select pg_temp.seed_template('5×5', 1, '5×5 – A', 'Alternate A and B. Add weight each session when all 5×5 are done.', '[
-  ["back_squat", 5, 5, null, null], ["barbell_bench_press", 5, 5, null, null], ["barbell_row", 5, 5, null, null]]');
-select pg_temp.seed_template('5×5', 2, '5×5 – B', 'Alternate A and B. Deadlift is 1×5.', '[
-  ["back_squat", 5, 5, null, null], ["overhead_press", 5, 5, null, null], ["deadlift", 1, 5, null, null]]');

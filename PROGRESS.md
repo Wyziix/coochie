@@ -191,6 +191,10 @@ Checks: typecheck, lint, prettier, 147 Jest tests (incl. no-nested-pressables on
 - Edit form uses plain text fields for date/time (YYYY-MM-DD, HH:MM) so it works the same on web and Android without a date-picker library
 - The calendar groups by local date (a 23:30 workout belongs to that day)
 
+### Fix after testing
+
+- The Stage 3 migration failed when run a second time in the SQL Editor (`policy "workouts: own" does not exist`): its first statement had already run. The migration is now idempotent (every create/drop is guarded, the seed skips existing templates and no longer uses a temporary helper function). `npm run test:db` now re-runs it and also runs it after a simulated half-finished run; both end with exactly 8 ready-made templates. Future migrations follow the same rule (AGENTS.md)
+
 ### Known issues
 
 - Reloading the page on the template editor or the edit-workout screen goes back (the draft is in memory). Finished workouts and templates are saved; only unsaved edits are lost
