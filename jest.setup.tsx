@@ -45,3 +45,13 @@ jest.mock('@/lib/platform/network', () => ({
     return () => {};
   },
 }));
+
+// Push notifications (Android app) do nothing in tests.
+jest.mock('@/lib/platform/push', () => ({
+  supportsPush: false,
+  registerPush: jest.fn(async () => false),
+  askForPush: jest.fn(async () => false),
+  pushAllowed: jest.fn(async () => false),
+  unregisterPush: jest.fn(async () => {}),
+  onNotificationTap: jest.fn(() => () => {}),
+}));

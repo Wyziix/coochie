@@ -28,10 +28,10 @@ const sections: Section[] = [
     href: '/admin/templates',
   },
   {
-    title: 'AI usage',
-    description: 'Usage dashboard and daily AI limit',
+    title: 'AI',
+    description: 'Kill switch, limits, spending cap, usage dashboard',
     icon: 'sparkles-outline',
-    stage: 6,
+    href: '/admin/ai',
   },
   {
     title: 'Moderation',

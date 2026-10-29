@@ -22,8 +22,8 @@ import { offlineStorage } from './storage';
 const KEY = 'query-cache';
 const MAX_AGE = 30 * 24 * 60 * 60 * 1000;
 
-/** Never stored: photos (signed URLs, behind the PIN), the lock, admin data. */
-const NOT_STORED = new Set(['photos', 'photo-lock', 'admin', 'admin-actions']);
+/** Never stored: photos (signed URLs, behind the PIN), the lock, admin data, AI calls left. */
+const NOT_STORED = new Set(['photos', 'photo-lock', 'admin', 'admin-actions', 'ai-status']);
 
 let timer: ReturnType<typeof setTimeout> | null = null;
 let latest: PersistedClient | null = null;

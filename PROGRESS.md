@@ -23,7 +23,7 @@ App name: **LightweightBaby** · bundle ID / package `com.lightweightbaby.app` �
 | 3     | Templates and history                | Done   |
 | 4     | Progress tracking                    | Done   |
 | 5     | Offline mode and sync                | Done   |
-| 6     | Claude feedback                      | –      |
+| 6     | Claude feedback                      | Done   |
 | 7     | AI plan generator and coach chat     | –      |
 | 8     | Points and ranking                   | –      |
 | 9     | Social                               | –      |
@@ -309,6 +309,35 @@ Airplane-mode test on the production web build with the service worker, at 390 p
 - A brand-new install that has never been online can't show anything offline (nothing cached yet)
 - Records (PRs) for an offline workout appear after it syncs; no celebration afterwards
 - If you edit the same workout on two devices while both are offline, the later edit (by device time) wins as a whole; changes aren't merged set by set
+
+## Stage 6 – Claude feedback (post-workout and weekly)
+
+Built:
+
+- **Model and cost:** Claude Haiku 5.5 (`claude-haiku-5-5`, $0.10 / $0.50 per million input / output tokens, cache reads $0.01, 5-minute cache writes $0.125; checked on the Anthropic pricing page 2026-10-29) for everything, Stage 7 included. The model ID and prices are one row in `ai_settings`, changeable from Admin → AI. No thinking, low effort, structured JSON output; max 400 output tokens for workout feedback, 700 for the weekly report. The fixed system prompt (~870 tokens, above Haiku's 512-token caching minimum, no dates or user data in it) is cached. Claude gets a compact summary built in SQL (`ai_workout_context`, `ai_week_context`: per exercise working sets, top set, best e1RM, volume; up to 3 previous sessions of each exercise; PRs set; sets per muscle this week; 4 previous weeks' totals; goal, experience, planned days; notes for pain mentions; weights in the user's unit; no ids), never raw rows: under ~3,000 characters, so a call is about 1,500-2,000 input tokens. Every call logged in `ai_usage` with input, output, cache write/read tokens, attempts and cost
+- **Limits, enforced in the database before Claude is called** (`ai_reserve`, one lock, so a double tap or two users at the cap can't both get through): kill switch, daily limit (default 3; admin per-user overrides), global daily spending cap (default $0.50). A running call counts; a failed call doesn't use up a request; weekly reports don't use the user's daily requests. Blocked attempts are logged too
+- **Edge Functions** (`workout-feedback`, `weekly-report`, shared code in `supabase/functions/_shared`): check the user with Supabase Auth, return saved feedback without a call, reserve, build the summary, call Claude (Anthropic TypeScript SDK, 25 s timeout, one retry for overloaded/5xx), validate the JSON (lengths and item counts the schema can't express; cut-off or refused answers count as invalid), ask once more if invalid, then a clean error. Saved in `ai_feedback`. Clear messages for limit, kill switch, cap, timeout, API errors, already running
+- **Feedback content:** compares with previous sessions of the same exercises (numbers), names PRs, checks weekly muscle balance, flags volume jumps (~30%+) or back-to-back hard days only when the data shows them, one or two concrete targets; no generic motivation; no diagnoses: if notes mention pain or injury, `see_professional` is set and the app shows "stop the movement that hurts and see a physiotherapist or doctor"
+- **App:** "Get AI feedback" card on the workout summary (not automatic), with "2 of 3 AI requests left today"; saved feedback reopens for free (also offline); "Get new feedback" only after the workout was edited. Offline: "Needs connection". Logged offline and not synced yet: "available once this workout has synced". AI off / paused for the day / limit reached say so
+- **Weekly reports:** pg_cron Mondays 06:15 UTC (Tue/Wed catch-up for anyone skipped by the cap or kill switch) → `ai_start_weekly_run()` → `weekly-report` (one-time token, no secret) → a report for each user who trained last week. Weekly reports screen (Progress tab), "New weekly report" card on Home until opened, Android push via Expo (tap opens the report). Admin "Generate my report now" (current week, for testing)
+- **Admin → AI:** kill switch, daily limit, spending cap, model ID, max tokens, per-user overrides (search by name or email), spent today, last 30 days: calls, cost, errors and error rate, blocked, tokens, calls and cost per day charts, top users. Every change logged in `admin_actions` with the value before
+
+Checks: typecheck, lint, prettier, 242 Jest tests (feedback only on tap, saved feedback free, 4th request blocked with the message, server refusal shown, offline "Needs connection", AI off, see-a-professional banner, weekly badge until opened, admin kill switch / limits / override / dashboard / generate now, non-admins kept out), 27 Edge Function tests with Claude faked (feedback saved and logged with tokens, reopen without a call, **4th request blocked before Claude is called**, kill switch, invalid → retried once → accepted, invalid twice → clean error and not counted, cut-off/refused answers, timeout and API errors, double tap, unsynced workout, cron token once, cap and kill switch stop the Monday run, push sent and dead tokens removed, admin-only generate), DB checks for limits, overrides, kill switch, cap, cost arithmetic, admin logging, users only see their own, the summary content (previous sessions, PRs, muscles, notes, lbs, compact, no ids), weekly candidates, cron token, push tokens. Browser test of the production build at 390 px and 1440 px with the functions faked: 3 feedbacks, the 4th blocked, reopening free, weekly report badge until opened, admin screen. No real Claude calls in any automated test.
+
+### Decisions
+
+- **iPhone: in-app "New weekly report" card, not web push.** Web push works for home-screen apps on iOS 16.4+, but it needs a separate permission prompt from a button tap inside the installed app, signed VAPID pushes from the server, and subscriptions that iOS can silently drop (after updates, storage cleanup or long inactivity) with no way to tell. For a once-a-week report the card on Home is reliable; web push can be added later
+- Android push through Expo's push service (no extra secret); needs FCM credentials in EAS and a new APK
+- Everything that costs money is checked on the server; the app only shows what the server says
+- Thinking off and low effort: these are short structured answers from pre-computed numbers, and thinking tokens would count against the 400/700 cap
+- The admin test button reports the current week (last week may have no workouts on a test day); the Monday job reports the finished week
+
+### Known issues / to check
+
+- Android push needs the FCM setup in docs/SETUP.md section 11 and a new build; until then Android shows the in-app card
+- pg_cron and pg_net must be turned on before running the migration (it warns if not)
+- Feedback for a workout logged offline appears only after it synced
+- Exact token counts per call are in `ai_usage`; check the first real calls (see the live check in the Stage 6 report)
 
 ## Planned for Stage 13 (polish)
 

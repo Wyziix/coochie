@@ -144,6 +144,27 @@ select relrowsecurity from pg_class where oid = 'public.sync_tombstones'::regcla
 
 Apply it before using the new app version: without it, workout saves still go through, but deleting a workout or creating a template shows "Couldn't sync" (the server is missing the new functions). Nothing is lost; tap Retry on the Sync screen after applying it.
 
+### Stage 6 migration (Claude feedback)
+
+1. Dashboard → Database → Extensions: turn on **pg_cron** and **pg_net** (needed for the Monday reports).
+2. Run `20261106000000_ai_feedback.sql` (safe to run twice). It creates `ai_settings` (kill switch, daily limit 3, spending cap $0.50/day, model `claude-haiku-5-5`, prices), `ai_limit_overrides`, `ai_usage`, `ai_feedback`, `push_tokens`, the reservation/cost functions, the data summaries sent to Claude, the admin functions, and schedules the weekly job.
+
+```sql
+select enabled, daily_limit, daily_budget_usd, model, max_tokens_feedback, max_tokens_weekly from public.ai_settings;
+select jobname, schedule, command from cron.job where jobname = 'weekly-ai-reports';  -- 15 6 * * 1-3
+```
+
+If the second query fails or returns nothing, the extensions weren't on: turn them on and run the file again.
+
+3. The Claude key: already set as the `ANTHROPIC_API_KEY` function secret. It is only read inside the Edge Functions; it is never in the app, the repo or `.env`. No other secret is needed (the Monday job proves itself with a one-time token stored in the database).
+4. Deploy the functions (`photos`, `workout-feedback`, `weekly-report`):
+   ```bash
+   npm run deploy:functions
+   ```
+5. Redeploy the web app: `npm run deploy:web`.
+
+The model is one value: `ai_settings.model`, changeable in Admin → AI (or SQL). If you switch models, also update the four prices there, so the logged cost stays right.
+
 ## 6. Enable the custom access token hook
 
 This puts `user_role` (`user` / `admin`) into every login token.
@@ -269,3 +290,20 @@ Apply new migrations first (and `npm run deploy:functions` if `supabase/function
   ```
 - Changes made offline are sent automatically when the connection is back. "N changes waiting to sync" in the tab headers opens the Sync screen; changes the server refused show there with the reason (Retry / Discard).
 - If a migration fails halfway, re-run **that same file** only. Re-running an older file after a newer one can put back an older version of a server function (e.g. `save_workout` without last-write-wins).
+
+## 11. AI feedback and weekly reports
+
+- **Limits:** 3 requests per user per day (Admin → AI → "AI requests per user per day", per-user overrides below it). Checked in the database before Claude is called, under a lock, so two quick taps can't both get through. Failed calls don't use up a request. Days count in Europe/Madrid.
+- **Spending cap:** Admin → AI → "Daily spending cap" (default $0.50/day, everyone together). When today's logged cost reaches it, AI pauses for everyone until the next day. A typical call costs about $0.0002-0.0003.
+- **Kill switch:** Admin → AI → "Turn AI off" stops every AI call immediately.
+- **Usage:** Admin → AI shows the last 30 days (calls, cost, errors, top users). Every call is in `ai_usage` with tokens and cost:
+  ```sql
+  select created_at, function, status, model, input_tokens, cache_read_tokens, cache_write_tokens, output_tokens, cost_usd, error
+  from public.ai_usage order by created_at desc limit 20;
+  ```
+- **Weekly reports:** pg_cron runs `ai_start_weekly_run()` Mondays at 06:15 UTC (catch-up Tuesday and Wednesday for anyone skipped by the cap or the kill switch). It reports last week (Mon-Sun) for users who trained. Admin → AI → "Generate my report now" writes your own report for the current week (for testing).
+- **Notifications:** iPhone (web app): a "New weekly report" card on Home until you open it. Android: a push notification, once push is set up:
+  1. In Firebase create a project with an Android app `com.lightweightbaby.app`, download `google-services.json` into the repo root and add `"googleServicesFile": "./google-services.json"` under `android` in `app.json`.
+  2. Firebase → Project settings → Service accounts → generate a key; then `npx eas-cli@latest credentials -p android` → Google Service Account → FCM V1 → upload it.
+  3. Make sure the project is linked to EAS (`npx eas-cli@latest init` adds `extra.eas.projectId`), then build a new APK. Open Weekly reports and tap "Notify me when a report is ready".
+     Without this, Android shows the same in-app card as the iPhone.

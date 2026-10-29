@@ -203,6 +203,48 @@ export type Database = {
         };
         Relationships: [];
       };
+      ai_feedback: {
+        Row: {
+          id: string;
+          user_id: string;
+          kind: 'workout' | 'weekly';
+          workout_id: string | null;
+          week_start: string | null;
+          content: Json;
+          model: string;
+          source_updated_at: string | null;
+          seen_at: string | null;
+          created_at: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      ai_usage: {
+        Row: {
+          id: string;
+          user_id: string;
+          function: string;
+          ref_id: string | null;
+          status: string;
+          counts_toward_limit: boolean;
+          model: string | null;
+          input_tokens: number;
+          output_tokens: number;
+          cache_write_tokens: number;
+          cache_read_tokens: number;
+          attempts: number;
+          cost_usd: number;
+          estimated_cost_usd: number;
+          error: string | null;
+          day: string;
+          created_at: string;
+          finished_at: string | null;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
       templates: {
         Row: {
           id: string;
@@ -393,6 +435,19 @@ export type Database = {
       weekly_overview: { Args: { p_from: string; p_to: string }; Returns: Json };
       delete_workout_at: { Args: { p_id: string; p_deleted_at: string }; Returns: undefined };
       delete_template: { Args: { p_id: string; p_deleted_at?: string | null }; Returns: undefined };
+      ai_status: { Args: Record<string, never>; Returns: Json };
+      ai_mark_seen: { Args: { p_id: string }; Returns: undefined };
+      save_push_token: { Args: { p_token: string; p_platform?: string }; Returns: undefined };
+      delete_push_token: { Args: { p_token: string }; Returns: undefined };
+      admin_ai_settings: { Args: Record<string, never>; Returns: Json };
+      admin_update_ai_settings: { Args: { p_changes: Json }; Returns: Json };
+      admin_set_ai_override: {
+        Args: { p_user: string; p_limit: number | null };
+        Returns: undefined;
+      };
+      admin_ai_overrides: { Args: Record<string, never>; Returns: Json };
+      admin_find_users: { Args: { p_query: string }; Returns: Json };
+      admin_ai_usage: { Args: { p_days?: number }; Returns: Json };
       photo_lock_status: { Args: Record<string, never>; Returns: Json };
       photo_setup: { Args: { p_kind: string; p_secret: string }; Returns: Json };
       photo_unlock: {

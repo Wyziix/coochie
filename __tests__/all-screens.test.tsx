@@ -6,11 +6,14 @@ import type { Template } from '@/lib/api/templates';
 import { useTemplateDraftStore } from '@/stores/templateDraftStore';
 import { useEditWorkoutStore, useWorkoutStore } from '@/stores/workoutStore';
 import {
+  aiState,
   exercisesState,
   fakeProfile,
   fakeSession,
   onboardedProfile,
   resetBackend,
+  sampleFeedback,
+  sampleReport,
   templatesState,
 } from '@/test-utils/backend';
 
@@ -20,6 +23,7 @@ jest.mock('@/lib/api/profiles', () => require('@/test-utils/backend').profilesMo
 jest.mock('@/lib/api/progress', () => require('@/test-utils/backend').progressMock);
 jest.mock('@/lib/api/body', () => require('@/test-utils/backend').bodyMock);
 jest.mock('@/lib/api/photos', () => require('@/test-utils/backend').photosMock);
+jest.mock('@/lib/api/ai', () => require('@/test-utils/backend').aiMock);
 jest.mock('@/lib/api/photoLock', () => ({
   ...jest.requireActual('@/lib/api/photoLock'),
   ...require('@/test-utils/backend').photoLockMock,
@@ -63,6 +67,10 @@ const signedInRoutes = [
   '/photo-lock',
   '/photos/compare?a=p-1&b=p-2',
   '/workouts/celebrate?id=w-1',
+  '/sync',
+  '/reports',
+  '/reports/rep-1',
+  '/admin/ai',
 ];
 
 describe('every screen renders', () => {
@@ -82,6 +90,22 @@ describe('every screen renders', () => {
 
   it.each(signedInRoutes)('%s', async (url) => {
     resetBackend({ session: fakeSession(), profile: onboardedProfile({ role: 'admin' }) });
+    // A weekly report and saved feedback, so those screens show content.
+    aiState.reports = [
+      {
+        id: 'rep-1',
+        content: sampleReport,
+        created_at: '',
+        week_start: '2026-10-19',
+        seen_at: null,
+      },
+    ];
+    aiState.feedback.set('w-1', {
+      id: 'fb',
+      content: sampleFeedback,
+      created_at: '',
+      source_updated_at: '',
+    });
     await renderRouter(appDir, { initialUrl: url });
     await waitFor(() => expect(screen).toHavePathname(url.split('?')[0]!));
     await screen.findAllByText(/./);

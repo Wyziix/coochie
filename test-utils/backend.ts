@@ -82,6 +82,7 @@ export function resetBackend({
   backend.listeners.clear();
   // The auth store is a module-level singleton; start each test like a fresh app launch.
   useAuthStore.setState({ status: 'loading', session: null });
+  resetAi();
   // Fresh device: no offline data, nothing queued, online.
   jest.requireMock('@/lib/offline/storage').__memory.clear();
   useOutboxStore.setState({ userId: null, items: [], loaded: false, sending: [] });
@@ -672,3 +673,158 @@ export function resetProgress() {
   ];
 }
 resetProgress();
+
+// --- Stage 6: AI (Claude is never called in tests) -----------------------------
+const actualAi = jest.requireActual('@/lib/api/ai');
+
+export const sampleFeedback = {
+  summary: 'Bench top set 100x3, up from 95x5 by weight.',
+  positives: ['Heaviest bench so far: 100 kg (was 95 kg).'],
+  warnings: [],
+  suggestions: ['Next time try 100x4 on bench.'],
+  see_professional: false,
+};
+
+export const sampleReport = {
+  summary: 'You trained 3 times, as planned, and volume rose 8%.',
+  consistency: '3 of 3 planned sessions.',
+  volume_trend: '12,400 kg, up from 11,500 kg.',
+  highlights: ['Bench 100x3, a new heaviest set.'],
+  focus_next_week: ['Add one pulling exercise.'],
+  warnings: ['Left shoulder pain was noted.'],
+  see_professional: true,
+};
+
+export const aiState = {
+  status: { enabled: true, paused_for_budget: false, limit: 3, used_today: 0, remaining: 3 },
+  feedback: new Map<string, unknown>(),
+  reports: [] as {
+    id: string;
+    content: typeof sampleReport;
+    created_at: string;
+    week_start: string;
+    seen_at: string | null;
+  }[],
+  settings: {
+    enabled: true,
+    daily_limit: 3,
+    daily_budget_usd: 0.5,
+    model: 'claude-haiku-5-5',
+    max_tokens_feedback: 400,
+    max_tokens_weekly: 700,
+    price_input: 0.1,
+    price_output: 0.5,
+    price_cache_write: 0.125,
+    price_cache_read: 0.01,
+    timezone: 'Europe/Madrid',
+    updated_at: '',
+    spent_today_usd: 0.0021,
+  },
+  overrides: [] as {
+    user_id: string;
+    username: string;
+    display_name: string;
+    daily_limit: number;
+  }[],
+};
+
+export function resetAi() {
+  aiState.status = {
+    enabled: true,
+    paused_for_budget: false,
+    limit: 3,
+    used_today: 0,
+    remaining: 3,
+  };
+  aiState.feedback = new Map();
+  aiState.reports = [];
+  aiState.settings = {
+    ...aiState.settings,
+    enabled: true,
+    daily_limit: 3,
+    model: 'claude-haiku-5-5',
+  };
+  aiState.overrides = [];
+}
+
+export const aiMock = {
+  AiError: actualAi.AiError,
+  fetchAiStatus: jest.fn(async () => ({ ...aiState.status })),
+  fetchWorkoutFeedback: jest.fn(async (id: string) => aiState.feedback.get(id) ?? null),
+  // Like the server: the limit is checked before Claude would be called.
+  requestWorkoutFeedback: jest.fn(async (id: string) => {
+    const s = aiState.status;
+    if (!s.enabled)
+      throw new actualAi.AiError('disabled', 'AI features are switched off right now.');
+    if (s.remaining <= 0)
+      throw new actualAi.AiError(
+        'limit',
+        `You've used your ${s.limit} AI requests for today. You get new ones tomorrow.`,
+      );
+    s.used_today++;
+    s.remaining--;
+    const feedback = {
+      id: `fb-${id}`,
+      content: sampleFeedback,
+      created_at: '2026-10-29T12:00:00Z',
+      source_updated_at: '',
+    };
+    aiState.feedback.set(id, feedback);
+    return { feedback, cached: false, stale: false };
+  }),
+  fetchWeeklyReports: jest.fn(async () => aiState.reports.map((r) => ({ ...r }))),
+  markReportSeen: jest.fn(async (id: string) => {
+    const r = aiState.reports.find((x) => x.id === id);
+    if (r) r.seen_at = '2026-10-29T12:00:00Z';
+  }),
+  savePushToken: jest.fn(async () => {}),
+  deletePushToken: jest.fn(async () => {}),
+  fetchAiSettings: jest.fn(async () => ({ ...aiState.settings })),
+  updateAiSettings: jest.fn(async (changes: Partial<typeof aiState.settings>) => {
+    aiState.settings = { ...aiState.settings, ...changes };
+    if (changes.enabled !== undefined) aiState.status.enabled = changes.enabled;
+    return { ...aiState.settings };
+  }),
+  fetchAiOverrides: jest.fn(async () => [...aiState.overrides]),
+  setAiOverride: jest.fn(async (userId: string, limit: number | null) => {
+    aiState.overrides = aiState.overrides.filter((o) => o.user_id !== userId);
+    if (limit !== null)
+      aiState.overrides.push({
+        user_id: userId,
+        username: 'girlfriend',
+        display_name: 'Anna',
+        daily_limit: limit,
+      });
+  }),
+  findUsers: jest.fn(async () => [
+    { user_id: 'user-2', username: 'girlfriend', display_name: 'Anna', email: 'anna@test.dev' },
+  ]),
+  fetchAiUsage: jest.fn(async () => ({
+    since: '2026-09-30',
+    days: [
+      { day: '2026-10-28', calls: 2, errors: 0, blocked: 1, cost_usd: 0.0005 },
+      { day: '2026-10-29', calls: 3, errors: 1, blocked: 0, cost_usd: 0.0008 },
+    ],
+    top_users: [{ user_id: 'user-1', username: 'gleb', calls: 5, cost_usd: 0.0013 }],
+    totals: {
+      calls: 5,
+      errors: 1,
+      blocked: 1,
+      error_rate: 0.2,
+      cost_usd: 0.0013,
+      input_tokens: 9000,
+      output_tokens: 1500,
+    },
+  })),
+  generateWeeklyReportNow: jest.fn(async () => {
+    const report = {
+      id: 'rep-now',
+      content: sampleReport,
+      created_at: '',
+      week_start: '2026-10-26',
+      seen_at: null,
+    };
+    aiState.reports = [report, ...aiState.reports];
+    return { report };
+  }),
+};

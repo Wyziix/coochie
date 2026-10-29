@@ -23,6 +23,7 @@ jest.mock('@/lib/api/templates', () => require('@/test-utils/backend').templates
 jest.mock('@/lib/api/progress', () => require('@/test-utils/backend').progressMock);
 jest.mock('@/lib/api/body', () => require('@/test-utils/backend').bodyMock);
 jest.mock('@/lib/api/photos', () => require('@/test-utils/backend').photosMock);
+jest.mock('@/lib/api/ai', () => require('@/test-utils/backend').aiMock);
 jest.mock('@/lib/api/photoLock', () => ({
   ...jest.requireActual('@/lib/api/photoLock'),
   ...require('@/test-utils/backend').photoLockMock,

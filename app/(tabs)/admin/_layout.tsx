@@ -16,6 +16,7 @@ export default function AdminLayout() {
         <Stack.Screen name="exercise" options={{ title: 'Exercise' }} />
         <Stack.Screen name="templates" options={{ title: 'Ready-made templates' }} />
         <Stack.Screen name="template" options={{ title: 'Template' }} />
+        <Stack.Screen name="ai" options={{ title: 'AI' }} />
       </Stack>
     </OnlineOnly>
   );

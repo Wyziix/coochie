@@ -5,6 +5,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { Button, Card, EmptyState, ErrorState, Header, Screen, Text } from '@/components/ui';
 import { useMeasurements } from '@/hooks/useBody';
+import { useUnseenReports } from '@/hooks/useAi';
 import { useLockStatus } from '@/hooks/usePhotoLock';
 import { useProfile } from '@/hooks/useProfile';
 import { useRecentRecords, useTrainedExercises } from '@/hooks/useProgress';
@@ -28,6 +29,7 @@ export default function ProgressScreen() {
   const unit = useProfile().data?.units ?? 'kg';
   const body = useMeasurements();
   const photoLock = useLockStatus();
+  const unseenReports = useUnseenReports();
   const records = useRecentRecords(8);
   const exercises = useTrainedExercises();
   const [now] = useState(() => Date.now());
@@ -89,6 +91,23 @@ export default function ProgressScreen() {
           </Text>
         </Card>
       </View>
+
+      <Card
+        onPress={() => router.push('/reports')}
+        accessibilityLabel={`Weekly reports${unseenReports.length ? ', new' : ''}`}
+      >
+        <View style={styles.row}>
+          <Ionicons name="sparkles-outline" size={20} color={theme.colors.primary} />
+          <Text variant="label" style={[styles.flex, { marginLeft: theme.spacing.sm }]}>
+            Weekly reports
+          </Text>
+          {unseenReports.length ? (
+            <Text variant="caption" color="primary">
+              New
+            </Text>
+          ) : null}
+        </View>
+      </Card>
 
       <View style={{ gap: theme.spacing.sm }}>
         <Text variant="heading">Recent records</Text>

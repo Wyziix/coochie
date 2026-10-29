@@ -3,6 +3,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 
+import { AiWatcher } from '@/components/ai/AiWatcher';
 import { SyncWatcher } from '@/components/offline/SyncWatcher';
 import { PhotoLockWatcher } from '@/components/photos/PhotoLockWatcher';
 import { AppFrame } from '@/components/providers/AppFrame';
@@ -82,6 +83,7 @@ function RootNavigator() {
     <>
       {signedIn ? <PhotoLockWatcher /> : null}
       {signedIn ? <SyncWatcher /> : null}
+      {signedIn && onboarded ? <AiWatcher /> : null}
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Protected guard={!signedIn}>
           <Stack.Screen name="sign-in" />
@@ -128,6 +130,14 @@ function RootNavigator() {
           <Stack.Screen name="history" options={{ headerShown: true, title: 'History' }} />
           <Stack.Screen name="photo-lock" options={{ headerShown: true, title: 'Photo lock' }} />
           <Stack.Screen name="sync" options={{ headerShown: true, title: 'Sync' }} />
+          <Stack.Screen
+            name="reports/index"
+            options={{ headerShown: true, title: 'Weekly reports' }}
+          />
+          <Stack.Screen
+            name="reports/[id]"
+            options={{ headerShown: true, title: 'Weekly report' }}
+          />
         </Stack.Protected>
       </Stack>
     </>

@@ -69,10 +69,10 @@
     "test": "jest",
     "check": "npm run typecheck && npm run lint && npm run format:check && npm test -- --ci && npm run test:functions",
     "test:db": "bash scripts/test-db.sh",
-    "test:functions": "npx -y deno@2.9.6 test supabase/functions",
+    "test:functions": "npx -y deno@2.9.6 test --node-modules-dir=none supabase/functions",
     "build:web": "expo export --platform web --clear && node scripts/build-sw.mjs",
     "deploy:web": "npm run build:web && npx -y wrangler@4.155.0 pages deploy dist --project-name ${CF_PAGES_PROJECT:-lightweightbaby} --branch main --commit-dirty=true",
-    "deploy:functions": "npx -y supabase@2.122.0 functions deploy photos --no-verify-jwt --use-api --project-ref gwyymvaxgmpamtiuhoez"
+    "deploy:functions": "npx -y supabase@2.122.0 functions deploy --no-verify-jwt --use-api --project-ref gwyymvaxgmpamtiuhoez"
   },
   "private": true,
   "engines": {

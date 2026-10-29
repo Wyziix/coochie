@@ -2,6 +2,7 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
+import { WorkoutFeedbackCard } from '@/components/ai/WorkoutFeedbackCard';
 import { BottomSheet, Button, Card, ErrorState, Input, LoadingState, Text } from '@/components/ui';
 import { useProfile } from '@/hooks/useProfile';
 import { useTheme } from '@/hooks/useTheme';
@@ -162,6 +163,12 @@ export default function WorkoutSummaryScreen() {
           ))}
         </Card>
       ) : null}
+
+      <WorkoutFeedbackCard
+        workoutId={workout.id}
+        waitingToSync={sync !== undefined}
+        workoutUpdatedAt={workout.updated_at}
+      />
 
       {blocks.map((block, i) => (
         <Card key={`${block.name}-${i}`}>

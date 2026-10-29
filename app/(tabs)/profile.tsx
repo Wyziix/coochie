@@ -8,6 +8,7 @@ import { Avatar, Button, Card, Header, Screen, Text } from '@/components/ui';
 import { useProfile } from '@/hooks/useProfile';
 import { useTheme } from '@/hooks/useTheme';
 import { signOut } from '@/lib/auth';
+import { unregisterPush } from '@/lib/platform/push';
 import { confirm } from '@/lib/confirm';
 import { onlineManager } from '@tanstack/react-query';
 import { outboxCounts, useOutboxStore } from '@/lib/offline/outbox';
@@ -41,6 +42,7 @@ export default function ProfileScreen() {
     if (!ok) return;
     setSigningOut(true);
     try {
+      await unregisterPush();
       await signOut();
     } finally {
       setSigningOut(false);
