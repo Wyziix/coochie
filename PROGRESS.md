@@ -22,7 +22,7 @@ App name: **LightweightBaby** · bundle ID / package `com.lightweightbaby.app` �
 | 2     | Exercise library and workout logging | Done   |
 | 3     | Templates and history                | Done   |
 | 4     | Progress tracking                    | Done   |
-| 5     | Offline mode and sync                | –      |
+| 5     | Offline mode and sync                | Done   |
 | 6     | Claude feedback                      | –      |
 | 7     | AI plan generator and coach chat     | –      |
 | 8     | Points and ranking                   | –      |
@@ -95,7 +95,7 @@ Checks: typecheck, lint, prettier, 47 Jest tests, 25 DB tests. Web and native bu
 
 - Tested by you against the real project (`gwyymvaxgmpamtiuhoez`): Google login on web works, migration applied
 - iPhone PWA + Google redirect: the redirect flow is the right approach for home-screen web apps, but iOS standalone mode sometimes opens OAuth in a separate browser sheet. Test it early on her phone once the web app is reachable; if it's flaky, the fallback is an email magic link for web
-- Stage 5 (offline on web): expo-sqlite on web needs extra HTTP headers (COOP/COEP). Host picked with this in mind (Cloudflare Pages, see below)
+- ~~Stage 5 (offline on web): expo-sqlite on web needs extra HTTP headers (COOP/COEP)~~ Solved in Stage 5: web uses IndexedDB, no special headers
 - PWA icons are placeholders; real icon in Stage 13
 
 ## Stage 1 additions – roles, secure session, email login
@@ -270,6 +270,45 @@ Checks: typecheck, lint, prettier, 190 Jest tests (lock setup, wrong PIN counter
 - iPhone home-screen app: Google sign-in may come back to Safari instead of the app; email code works. Forgot PIN needs Google: if it doesn't work inside the home-screen app, do the reset in Safari (it's stored on the server), then open the app and set the new PIN
 - Biometric unlock is untested on a real phone (needs a new Android build: `npx eas-cli@latest build --profile preview --platform android`)
 - The "fresh Google login" check relies on Supabase putting `amr: [{method: "oauth", timestamp}]` in the token (true for both the web redirect and Android ID-token sign-in, per Supabase Auth source)
+
+## Stage 5 – Offline mode and sync
+
+Built:
+
+- **Storage: IndexedDB on web, SQLite on Android, one interface** (`lib/offline/storage.ts` / `.web.ts`, a small key-value store). It holds the query cache and the sync queue
+- **Server** (`20261104000000_offline_sync.sql`, idempotent):
+  - `client_updated_at` on workouts and templates: when the change was made on the device. Last write wins compares that (capped at server time so a wrong phone clock can't win forever), not `updated_at` (the time it arrived)
+  - `sync_tombstones`: deleting leaves a tombstone, so an older offline edit arriving later can't bring a workout/template back; a newer edit can
+  - `save_workout` v4 (same checks and server-side totals/PRs as before, plus last-write-wins), `delete_workout_at(id, time)` (`delete_workout(id)` still works), `save_template` takes the app's id for new templates, new `delete_template(id, time)`. Retries with the same ids never create duplicates; deleting twice is fine
+- **Sync queue** (`lib/offline/outbox.ts`, `sync.ts`): saves are stored on the device first, then sent through the same server functions. Covers finishing/editing/deleting workouts, creating/editing/deleting templates (incl. "Save as template", now built on the device), custom exercises (app-picked id, upsert) and rest times
+  - A newer save of the same thing replaces a waiting one; a delete drops waiting saves
+  - Sent when the app opens, when the connection comes back, when the app returns to the front, and every minute while something waits; one run at a time, in order
+  - No connection / expired session / server 5xx → stays and is retried. Refused by the server (deleted exercise, invalid data, not allowed) → marked "Couldn't sync", shown on the Sync screen with the reason, Retry or Discard; never retried forever or dropped silently. Unknown errors become a problem after 5 tries
+  - Each account has its own queue (stored under its id); a queue is only ever sent with that account's session. A workout in progress from another account is discarded, never saved into this one. Logging out with unsynced changes asks first (they stay for that account)
+- **Offline reading:** the query cache is saved on the device per user (thrown away on sign-out or another account) and restored on start. While online the app pre-loads what the gym needs: exercise library, templates, recent workouts and first history page, rest times, and last time's sets for recent and template exercises (now cached per exercise). Queued changes show on top: history, calendar, recent list, Home week stats, workout details, templates, exercises. Rows say "Waiting to sync" / "Couldn't sync"
+- **Opens offline** even with an expired login token: the app starts with the session stored on the device (Supabase keeps retrying the refresh for ~30 s offline) and refreshes it when back online. Logging out works offline (this device only)
+- **Service worker** (web, production builds only; `scripts/build-sw.mjs` generates `dist/sw.js` after `expo export`): precaches the app (HTML, JS, fonts, icons; 64 files, 2.7 MB). Only same-origin files of this app; never Supabase API, Edge Functions, storage or Google. A new deploy installs in the background → "Update available, tap to reload" banner → tap → new version. Checks for updates when the app comes to the front and every 30 minutes
+- **Indicators:** "Offline · 2 changes waiting to sync" / "1 couldn't sync" in the tab headers (tap → Sync screen). Loading screens say "No connection. This loads when you're back online."
+- **Online only, with a clear "Needs connection" state:** progress photos (server PIN lock), photo lock settings, admin tools, logging body stats. AI features later
+
+Checks: typecheck, lint, prettier, 224 Jest tests (queue merging, per-account queues, retry vs. permanent failure, failed item shown with Retry/Discard, order kept, other account's session never used, overlays, offline finish → waiting → synced once, logout warning, needs-connection states, another account's workout in progress), 11 Edge Function tests, 263 DB checks (retries store once, older edit ignored, newer wins, delete vs. edit by time, tombstones, future clock capped, others can't overwrite/delete, template ids). Android and iOS bundles export.
+
+Airplane-mode test on the production web build with the service worker, at 390 px and 1440 px, with every request to Supabase refused while offline: sign in → go offline → start, log and finish a workout (saved on the device, Home counts it, "Offline · 1 change waiting to sync") → photos say "Needs connection" → wait until the login token expired → close and reopen offline (app loads from the service worker, still signed in, workout in history) → back online → synced automatically, **exactly one** `save_workout` call and one workout on the server, still one after a reload → simulated new deploy → banner → tap → new version. Only app files in the cache. No console errors. The Stage 4 photo-lock browser test still passes with the service worker on.
+
+### Decisions
+
+- **IndexedDB on web instead of SQLite.** SQLite on web needs cross-origin isolation; iPhone Safari only supports the strict `COEP: require-corp`, which blocks cross-origin images that don't opt in (Google profile pictures, Supabase avatars) and adds a 1 MB+ WebAssembly download; Expo also marks SQLite on web as alpha. IndexedDB works in Safari and home-screen apps without any headers. Android keeps SQLite. Both sit behind one small interface, and what's stored (a cache and a queue) doesn't need SQL queries
+- The cache + queue approach (TanStack Query persisted cache, queue of server-function calls) instead of a full local database copy: the server stays the only place totals, PRs and (later) points are calculated
+- Photos stay online-only: their URLs come from the server only after the PIN, so they can't be cached for offline
+- Finish online still shows the PR celebration from the server; offline it goes to the summary ("records are checked when it syncs")
+- Mutations always run (even offline): queued ones save to the device; online-only ones fail fast with "No connection" instead of hanging
+
+### Known issues / to check
+
+- Android needs a new build for the new native modules (expo-sqlite, expo-network; expo-local-authentication from the photo lock): `npx eas-cli@latest build --profile preview --platform android`
+- A brand-new install that has never been online can't show anything offline (nothing cached yet)
+- Records (PRs) for an offline workout appear after it syncs; no celebration afterwards
+- If you edit the same workout on two devices while both are offline, the later edit (by device time) wins as a whole; changes aren't merged set by set
 
 ## Planned for Stage 13 (polish)
 

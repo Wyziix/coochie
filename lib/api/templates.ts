@@ -26,14 +26,19 @@ export async function fetchTemplates(): Promise<Template[]> {
   return templates;
 }
 
-export async function saveTemplate(id: string | null, payload: TemplatePayload) {
+/** The app picks the id of a new template, so a retried save can't create two. */
+export async function saveTemplate(id: string, payload: TemplatePayload) {
   const { data, error } = await getSupabase().rpc('save_template', { p_id: id, ...payload });
   if (error) throw error;
   return data;
 }
 
-export async function deleteTemplate(id: string): Promise<void> {
-  const { error } = await getSupabase().from('templates').delete().eq('id', id);
+/** Deletes the template unless it was edited after `deletedAt` (last write wins). */
+export async function deleteTemplateAt(id: string, deletedAt: string): Promise<void> {
+  const { error } = await getSupabase().rpc('delete_template', {
+    p_id: id,
+    p_deleted_at: deletedAt,
+  });
   if (error) throw error;
 }
 

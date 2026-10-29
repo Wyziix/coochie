@@ -43,7 +43,7 @@ export default function TemplateDetailScreen() {
       destructive: true,
     });
     if (!ok) return;
-    remove.mutate(template!.id, { onSuccess: () => router.back() });
+    remove.mutate(template!, { onSuccess: () => router.back() });
   }
 
   return (

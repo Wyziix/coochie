@@ -24,6 +24,7 @@ import type { Measurement } from '@/lib/api/body';
 import { confirm } from '@/lib/confirm';
 import { describeError } from '@/lib/errors';
 import { dateKey } from '@/lib/history/calendar';
+import { useIsOnline } from '@/lib/offline/network';
 import {
   emptyForm,
   formToInput,
@@ -43,6 +44,7 @@ const chartOptions: { key: ChartKey; label: string }[] = [
 
 export default function BodyScreen() {
   const theme = useTheme();
+  const online = useIsOnline();
   const unit = useProfile().data?.units ?? 'kg';
   const lengthUnit = heightUnitFor(unit);
   const { data, isPending, error, refetch } = useMeasurements();
@@ -117,11 +119,15 @@ export default function BodyScreen() {
       contentContainerStyle={{ padding: theme.spacing.lg, gap: theme.spacing.md }}
     >
       <Stack.Screen options={{ title: 'Body' }} />
-      <Button
-        title="Log measurements"
-        onPress={() => openForm(data?.find((m) => m.measured_on === dateKey(new Date())))}
-        fullWidth
-      />
+      {online ? (
+        <Button
+          title="Log measurements"
+          onPress={() => openForm(data?.find((m) => m.measured_on === dateKey(new Date())))}
+          fullWidth
+        />
+      ) : (
+        <Text color="textMuted">Logging body stats needs a connection.</Text>
+      )}
 
       {isPending ? (
         <LoadingState />

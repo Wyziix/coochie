@@ -1,21 +1,39 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMemo } from 'react';
 
 import {
   adminDeleteTemplate,
   adminSaveTemplate,
   adminSetTemplateHidden,
-  deleteTemplate,
   fetchTemplates,
-  saveTemplate,
-  templateFromWorkout,
   type TemplatePayload,
 } from '@/lib/api/templates';
+import type { WorkoutDetail } from '@/lib/api/workouts';
+import { newId } from '@/lib/id';
+import { enqueue, useOutboxStore } from '@/lib/offline/outbox';
+import { overlayTemplates } from '@/lib/offline/overlay';
+import { syncNow } from '@/lib/offline/sync';
+import { templatePayloadFromWorkout } from '@/lib/templates/fromWorkout';
 import { useUserId } from '@/stores/authStore';
+
+import { useExercises } from './useExercises';
 
 export const templatesKey = ['templates'] as const;
 
+/** Ready-made and own templates, incl. changes made offline and not synced yet. */
 export function useTemplates() {
-  return useQuery({ queryKey: templatesKey, queryFn: fetchTemplates, staleTime: 5 * 60_000 });
+  const query = useQuery({
+    queryKey: templatesKey,
+    queryFn: fetchTemplates,
+    staleTime: 5 * 60_000,
+  });
+  const items = useOutboxStore((s) => s.items);
+  const exercises = useExercises().data;
+  const data = useMemo(() => {
+    if (!query.data && !items.some((i) => i.kind === 'save_template')) return query.data;
+    return overlayTemplates(query.data, items, new Map((exercises ?? []).map((e) => [e.id, e])));
+  }, [query.data, items, exercises]);
+  return { ...query, data };
 }
 
 /** Templates split into the user's own and ready-made programs (grouped, in order). */
@@ -46,26 +64,44 @@ function useInvalidate() {
   return () => queryClient.invalidateQueries({ queryKey: templatesKey });
 }
 
+/** Queued, so it works offline. New templates get their id here. */
 export function useSaveTemplate() {
-  const invalidate = useInvalidate();
   return useMutation({
-    mutationFn: ({ id, payload }: { id: string | null; payload: TemplatePayload }) =>
-      saveTemplate(id, payload),
-    onSuccess: invalidate,
+    mutationFn: async ({ id, payload }: { id: string | null; payload: TemplatePayload }) => {
+      const templateId = id ?? newId();
+      const name = (payload.p_template as { name?: string }).name ?? 'Template';
+      await enqueue({
+        kind: 'save_template',
+        entityId: templateId,
+        payload,
+        label: `Template “${name}”`,
+      });
+      syncNow();
+      return { id: templateId };
+    },
   });
 }
 
 export function useDeleteTemplate() {
-  const invalidate = useInvalidate();
-  return useMutation({ mutationFn: deleteTemplate, onSuccess: invalidate });
+  return useMutation({
+    mutationFn: async (template: { id: string; name: string }) => {
+      await enqueue({
+        kind: 'delete_template',
+        entityId: template.id,
+        payload: null,
+        label: `Delete template “${template.name}”`,
+      });
+      syncNow();
+    },
+  });
 }
 
+/** Built on the device and queued, so it works offline (and before the workout synced). */
 export function useTemplateFromWorkout() {
-  const invalidate = useInvalidate();
+  const save = useSaveTemplate();
   return useMutation({
-    mutationFn: ({ workoutId, name }: { workoutId: string; name: string }) =>
-      templateFromWorkout(workoutId, name),
-    onSuccess: invalidate,
+    mutationFn: ({ workout, name }: { workout: WorkoutDetail; name: string }) =>
+      save.mutateAsync({ id: null, payload: templatePayloadFromWorkout(workout, name) }),
   });
 }
 

@@ -18,7 +18,7 @@ export function WeeklyOverview() {
   const profile = useProfile().data;
   const unit = profile?.units ?? 'kg';
   const week = useWeeklyOverview();
-  const { from } = weekBounds();
+  const { from, to } = weekBounds();
   // Training days come from this month's (and, early in a week, last month's) workouts, in local time.
   const thisMonth = useMonthWorkouts(from.getFullYear(), from.getMonth());
   const now = new Date();
@@ -38,7 +38,27 @@ export function WeeklyOverview() {
     };
   });
 
-  if (week.error) return <ErrorState error={week.error} onRetry={() => week.refetch()} />;
+  // Counts come from the workouts themselves, so ones logged offline (still
+  // waiting to sync) count right away. Muscles come from the server.
+  const thisWeek = new Map(
+    [...(thisMonth.data ?? []), ...(nextMonth.data ?? [])]
+      .filter((w) => {
+        const t = Date.parse(w.started_at);
+        return t >= from.getTime() && t < to.getTime();
+      })
+      .map((w) => [w.id, w]),
+  );
+  const listed = thisMonth.data !== undefined || nextMonth.data !== undefined;
+  const totals = listed
+    ? {
+        workouts: thisWeek.size,
+        volume_kg: [...thisWeek.values()].reduce((sum, w) => sum + w.total_volume_kg, 0),
+        duration_seconds: [...thisWeek.values()].reduce((sum, w) => sum + w.duration_seconds, 0),
+      }
+    : week.data;
+
+  if (week.error && !listed)
+    return <ErrorState error={week.error} onRetry={() => week.refetch()} />;
   const o = week.data;
   const planned = profile?.training_days_per_week ?? null;
 
@@ -55,9 +75,9 @@ export function WeeklyOverview() {
     <Card>
       <Text variant="heading">This week</Text>
       <View style={styles.stats}>
-        {stat('Workouts', o ? `${o.workouts}${planned ? ` / ${planned}` : ''}` : '–')}
-        {stat('Volume', o ? formatWeight(o.volume_kg, unit) : '–')}
-        {stat('Time', o ? formatDurationShort(o.duration_seconds) : '–')}
+        {stat('Workouts', totals ? `${totals.workouts}${planned ? ` / ${planned}` : ''}` : '–')}
+        {stat('Volume', totals ? formatWeight(totals.volume_kg, unit) : '–')}
+        {stat('Time', totals ? formatDurationShort(totals.duration_seconds) : '–')}
       </View>
       <View style={[styles.days, { gap: 6 }]} accessibilityLabel="Days trained this week">
         {days.map((d) => (
@@ -96,7 +116,7 @@ export function WeeklyOverview() {
             ))}
           </View>
         </>
-      ) : o ? (
+      ) : totals && totals.workouts === 0 ? (
         <Text color="textMuted">No workouts yet this week.</Text>
       ) : null}
     </Card>

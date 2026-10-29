@@ -44,24 +44,18 @@ export async function fetchExercises(): Promise<Exercise[]> {
   return data;
 }
 
-export async function createCustomExercise(
+/**
+ * Creates or updates one of the user's custom exercises. The app picks the id,
+ * so sending it again (a retry after a lost connection) changes nothing.
+ */
+export async function upsertCustomExercise(
   userId: string,
+  id: string,
   input: ExerciseInput,
 ): Promise<Exercise> {
   const { data, error } = await getSupabase()
     .from('exercises')
-    .insert({ ...input, owner_id: userId })
-    .select()
-    .single();
-  if (error) rethrow(error);
-  return data!;
-}
-
-export async function updateCustomExercise(id: string, input: ExerciseInput): Promise<Exercise> {
-  const { data, error } = await getSupabase()
-    .from('exercises')
-    .update(input)
-    .eq('id', id)
+    .upsert({ ...input, id, owner_id: userId }, { onConflict: 'id' })
     .select()
     .single();
   if (error) rethrow(error);

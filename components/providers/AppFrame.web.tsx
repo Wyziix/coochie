@@ -1,9 +1,13 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 
+import { UpdateBanner } from '@/components/offline/UpdateBanner';
 import { useTheme } from '@/hooks/useTheme';
+import { registerServiceWorker } from '@/lib/platform/serviceWorker';
 
 export const APP_MAX_WIDTH = 600;
+
+registerServiceWorker();
 
 /**
  * Web: centers the app in a phone-width column so it looks like the app on
@@ -29,6 +33,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
         ]}
       >
         {children}
+        <UpdateBanner />
       </View>
     </View>
   );

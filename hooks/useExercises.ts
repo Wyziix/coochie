@@ -1,24 +1,37 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMemo } from 'react';
 
 import {
   adminSaveExercise,
   adminSetExerciseHidden,
-  createCustomExercise,
   fetchExercises,
   fetchLastSets,
   fetchRecentExerciseIds,
   fetchRestSettings,
-  saveRestSetting,
-  updateCustomExercise,
   type Exercise,
   type ExerciseInput,
+  type LastSet,
 } from '@/lib/api/exercises';
-import { useUserId } from '@/stores/authStore';
+import { newId } from '@/lib/id';
+import { enqueue, useOutboxStore } from '@/lib/offline/outbox';
+import { overlayExercises, overlayRest } from '@/lib/offline/overlay';
+import { syncNow } from '@/lib/offline/sync';
 
 export const exercisesKey = ['exercises'] as const;
 
+/** Exercise library, incl. custom exercises created offline and not synced yet. */
 export function useExercises() {
-  return useQuery({ queryKey: exercisesKey, queryFn: fetchExercises, staleTime: 10 * 60_000 });
+  const query = useQuery({
+    queryKey: exercisesKey,
+    queryFn: fetchExercises,
+    staleTime: 10 * 60_000,
+  });
+  const items = useOutboxStore((s) => s.items);
+  const data = useMemo(
+    () => (query.data ? overlayExercises(query.data, items) : query.data),
+    [query.data, items],
+  );
+  return { ...query, data };
 }
 
 export function useExercise(id: string | undefined) {
@@ -27,39 +40,50 @@ export function useExercise(id: string | undefined) {
 }
 
 export function useRestSettings() {
-  return useQuery({
+  const query = useQuery({
     queryKey: ['rest-settings'],
     queryFn: fetchRestSettings,
     staleTime: 10 * 60_000,
   });
+  const items = useOutboxStore((s) => s.items);
+  const data = useMemo(() => overlayRest(query.data, items), [query.data, items]);
+  return { ...query, data };
 }
 
+/** Queued, so it works offline. */
 export function useSaveRestSetting() {
-  const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ exerciseId, seconds }: { exerciseId: string; seconds: number }) =>
-      saveRestSetting(exerciseId, seconds),
-    onMutate: ({ exerciseId, seconds }) =>
-      queryClient.setQueryData<Record<string, number>>(['rest-settings'], (old) => ({
-        ...old,
-        [exerciseId]: seconds,
-      })),
+    mutationFn: async ({ exerciseId, seconds }: { exerciseId: string; seconds: number }) => {
+      await enqueue({
+        kind: 'save_rest',
+        entityId: exerciseId,
+        payload: { seconds },
+        label: 'Rest time',
+      });
+      syncNow();
+    },
   });
 }
 
-/** Sets from the last workout for each exercise, keyed by exercise id. */
+/**
+ * Sets from the last workout for each exercise, keyed by exercise id. Cached
+ * per exercise, so any mix of exercises has its "previous" values offline.
+ */
 export function useLastSets(exerciseIds: string[]) {
-  const ids = [...new Set(exerciseIds)].sort();
-  return useQuery({
-    queryKey: ['last-sets', ids],
-    queryFn: async () => {
-      const rows = await fetchLastSets(ids);
-      const byExercise: Record<string, typeof rows> = {};
-      for (const r of rows) (byExercise[r.exercise_id] ??= []).push(r);
-      return byExercise;
+  const ids = [...new Set(exerciseIds)];
+  return useQueries({
+    queries: ids.map((id) => ({
+      queryKey: ['last-sets', id],
+      queryFn: () => fetchLastSets([id]),
+      staleTime: 5 * 60_000,
+    })),
+    combine: (results) => {
+      const data: Record<string, LastSet[]> = {};
+      results.forEach((r, i) => {
+        if (r.data) data[ids[i]!] = r.data;
+      });
+      return { data };
     },
-    enabled: ids.length > 0,
-    staleTime: 5 * 60_000,
   });
 }
 
@@ -68,16 +92,20 @@ const upsertInCache = (list: Exercise[] | undefined, e: Exercise) =>
     ? list.map((x) => (x.id === e.id ? e : x))
     : [...(list ?? []), e].sort((a, b) => a.name.localeCompare(b.name));
 
+/** Create or edit a custom exercise. Queued, so it works offline; usable right away. */
 export function useSaveCustomExercise() {
-  const userId = useUserId();
-  const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, input }: { id?: string; input: ExerciseInput }) => {
-      if (!userId) throw new Error('Not signed in');
-      return id ? updateCustomExercise(id, input) : createCustomExercise(userId, input);
+    mutationFn: async ({ id, input }: { id?: string; input: ExerciseInput }) => {
+      const exerciseId = id ?? newId();
+      await enqueue({
+        kind: 'save_exercise',
+        entityId: exerciseId,
+        payload: input,
+        label: `Exercise “${input.name}”`,
+      });
+      syncNow();
+      return { id: exerciseId };
     },
-    onSuccess: (e) =>
-      queryClient.setQueryData<Exercise[]>(exercisesKey, (l) => upsertInCache(l, e)),
   });
 }
 

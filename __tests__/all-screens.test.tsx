@@ -73,6 +73,11 @@ describe('every screen renders', () => {
     useWorkoutStore
       .getState()
       .startRest(useWorkoutStore.getState().workout!.exercises[0]!.key, 60, null);
+    // The editors open with a draft already loaded (they redirect without one).
+    useTemplateDraftStore.setState({
+      draft: draftFromTemplate(templatesState.list[0] as Template),
+    });
+    useEditWorkoutStore.getState().load(useWorkoutStore.getState().workout!);
   });
 
   it.each(signedInRoutes)('%s', async (url) => {

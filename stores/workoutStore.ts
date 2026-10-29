@@ -5,6 +5,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 
 import type { Exercise } from '@/lib/api/exercises';
 import { newId } from '@/lib/id';
+import { useAuthStore } from '@/stores/authStore';
 import type { WeightUnit } from '@/lib/units';
 import type { ActiveExercise, ActiveSet, ActiveWorkout, RestTimer } from '@/lib/workout/types';
 
@@ -53,16 +54,26 @@ const mapExercise = (
 ): ActiveWorkout | null =>
   workout && { ...workout, exercises: workout.exercises.map((e) => (e.key === key ? fn(e) : e)) };
 
+const currentUserId = () => useAuthStore.getState().session?.user.id;
+
 const workoutSlice: StateCreator<WorkoutState> = (set) => ({
   workout: null,
   restTimer: null,
 
   start: (name, units) =>
     set({
-      workout: { id: newId(), name, startedAt: new Date().toISOString(), units, exercises: [] },
+      workout: {
+        id: newId(),
+        name,
+        startedAt: new Date().toISOString(),
+        units,
+        exercises: [],
+        ownerId: currentUserId(),
+      },
       restTimer: null,
     }),
-  load: (workout) => set({ workout, restTimer: null }),
+  load: (workout) =>
+    set({ workout: { ...workout, ownerId: workout.ownerId ?? currentUserId() }, restTimer: null }),
   rename: (name) => set((s) => ({ workout: s.workout && { ...s.workout, name } })),
   discard: () => set({ workout: null, restTimer: null }),
 

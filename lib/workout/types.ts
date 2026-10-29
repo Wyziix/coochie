@@ -39,6 +39,8 @@ export type ActiveWorkout = {
   id: string;
   name: string;
   startedAt: string;
+  /** The account it was started in; never saved into another one. */
+  ownerId?: string;
   units: WeightUnit;
   exercises: ActiveExercise[];
   templateId?: string | null;

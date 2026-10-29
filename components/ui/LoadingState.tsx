@@ -1,6 +1,7 @@
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { useTheme } from '@/hooks/useTheme';
+import { useIsOnline } from '@/lib/offline/network';
 
 import { Text } from './Text';
 
@@ -10,6 +11,7 @@ export type LoadingStateProps = {
 
 export function LoadingState({ message }: LoadingStateProps) {
   const theme = useTheme();
+  const online = useIsOnline();
   return (
     <View
       accessibilityRole="progressbar"
@@ -18,11 +20,17 @@ export function LoadingState({ message }: LoadingStateProps) {
     >
       <ActivityIndicator size="large" color={theme.colors.primary} />
       {message ? <Text color="textMuted">{message}</Text> : null}
+      {online ? null : (
+        <Text color="textMuted" style={styles.offline}>
+          No connection. This loads when you’re back online.
+        </Text>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  offline: { textAlign: 'center', paddingHorizontal: 24 },
   container: {
     flex: 1,
     alignItems: 'center',

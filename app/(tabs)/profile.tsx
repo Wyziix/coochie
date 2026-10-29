@@ -9,6 +9,9 @@ import { useProfile } from '@/hooks/useProfile';
 import { useTheme } from '@/hooks/useTheme';
 import { signOut } from '@/lib/auth';
 import { confirm } from '@/lib/confirm';
+import { onlineManager } from '@tanstack/react-query';
+import { outboxCounts, useOutboxStore } from '@/lib/offline/outbox';
+import { useWorkoutStore } from '@/stores/workoutStore';
 import { experienceOptions, goalOptions, labelFor } from '@/lib/profile/options';
 import { formatHeight, formatWeight } from '@/lib/units';
 
@@ -18,7 +21,23 @@ export default function ProfileScreen() {
   const [signingOut, setSigningOut] = useState(false);
 
   async function onSignOut() {
-    const ok = await confirm({ title: 'Log out?', confirmLabel: 'Log out', destructive: true });
+    const { waiting, failed } = outboxCounts(useOutboxStore.getState().items);
+    const unsynced = waiting + failed;
+    const notes = [
+      unsynced
+        ? `${unsynced} change${unsynced === 1 ? ' hasn’t' : 's haven’t'} synced yet. ${unsynced === 1 ? 'It stays' : 'They stay'} on this device and ${unsynced === 1 ? 'is' : 'are'} sent the next time you sign in with this account, never to another one.`
+        : null,
+      useWorkoutStore.getState().workout
+        ? 'Your workout in progress stays on this device for this account.'
+        : null,
+      onlineManager.isOnline() ? null : 'You’re offline: signing back in needs a connection.',
+    ].filter(Boolean);
+    const ok = await confirm({
+      title: unsynced ? 'Log out with unsynced changes?' : 'Log out?',
+      message: notes.length ? notes.join('\n\n') : undefined,
+      confirmLabel: 'Log out',
+      destructive: true,
+    });
     if (!ok) return;
     setSigningOut(true);
     try {

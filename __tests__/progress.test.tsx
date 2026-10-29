@@ -196,7 +196,7 @@ describe('exercise progress and overview', () => {
   it('shows the weekly overview on Home', async () => {
     await renderRouter(appDir, { initialUrl: '/' });
     expect(await screen.findByText('This week')).toBeOnTheScreen();
-    expect(await screen.findByText('2 / 4')).toBeOnTheScreen();
+    expect(await screen.findByText('1 / 4')).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Triceps 4.5' })).toBeOnTheScreen();
   });
 

@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { Button, ErrorState, LoadingState, Text } from '@/components/ui';
+import { NeedsConnection } from '@/components/offline/NeedsConnection';
 import { useNow } from '@/hooks/useNow';
 import { useForgotPhotoLock } from '@/hooks/useForgotPhotoLock';
 import { useBiometrics, useLockStatus } from '@/hooks/usePhotoLock';
@@ -18,6 +19,7 @@ import {
   type UnlockResult,
 } from '@/lib/api/photoLock';
 import { describeError } from '@/lib/errors';
+import { useIsOnline } from '@/lib/offline/network';
 import { biometricsLabel, clearLocalBiometrics, readDeviceKey } from '@/lib/photos/biometrics';
 import { usePhotoLockStore } from '@/stores/photoLockStore';
 
@@ -31,8 +33,13 @@ import { NewSecretFields, SecretInput } from './SecretFields';
 export function PhotoGate({ children }: { children: ReactNode }) {
   const token = usePhotoLockStore((s) => s.token);
   const status = useLockStatus();
+  const online = useIsOnline();
 
   if (token) return <>{children}</>;
+  if (!online)
+    return (
+      <NeedsConnection message="Progress photos stay behind your PIN on the server, so they need a connection." />
+    );
   if (status.isPending) return <LoadingState />;
   if (status.error) return <ErrorState error={status.error} onRetry={() => status.refetch()} />;
   if (status.data.state === 'setup') return <SetupLock />;

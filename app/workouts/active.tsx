@@ -75,9 +75,14 @@ export default function ActiveWorkoutScreen() {
     if (!ok) return;
 
     try {
+      // Stored on the device first, then sent (now if online, later if not).
       const saved = await save.mutateAsync(toSavePayload(current));
       await rest.skip();
       useWorkoutStore.getState().discard();
+      if (!saved.synced) {
+        router.replace({ pathname: '/workouts/[id]', params: { id: saved.id, finished: '1' } });
+        return;
+      }
       // The server computed records while saving; ask it what's new.
       const records = await queryClient
         .fetchQuery({

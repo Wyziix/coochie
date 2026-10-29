@@ -131,6 +131,19 @@ No CLI? Dashboard → Edge Functions → Deploy a new function → name `photos`
 
 Check: in the app, open Progress photos → set a PIN → add a photo. Dashboard → Edge Functions → photos → Logs shows the calls.
 
+### Stage 5 migration (offline sync)
+
+- `20261104000000_offline_sync.sql`: `client_updated_at` on workouts and templates (last write wins by the time the change was made on the device), `sync_tombstones` (deleted ids), `save_workout` v4, `delete_workout_at`, `save_template` with app-picked ids, `delete_template`. Safe to run twice
+
+```sql
+select column_name from information_schema.columns
+where table_schema = 'public' and table_name in ('workouts', 'templates') and column_name = 'client_updated_at';  -- 2 rows
+select proname from pg_proc where proname in ('delete_workout_at', 'delete_template', '_change_time') order by 1;  -- 3 rows
+select relrowsecurity from pg_class where oid = 'public.sync_tombstones'::regclass;  -- true
+```
+
+Apply it before using the new app version: without it, workout saves still go through, but deleting a workout or creating a template shows "Couldn't sync" (the server is missing the new functions). Nothing is lost; tap Retry on the Sync screen after applying it.
+
 ## 6. Enable the custom access token hook
 
 This puts `user_role` (`user` / `admin`) into every login token.
@@ -223,7 +236,7 @@ Changes in Google can take a few minutes to apply.
 
 `public/_headers` sets `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options`, `Permissions-Policy` and long caching for the hashed JS/asset files. None of them affects Google login (a full-page redirect), Supabase calls or photo uploads (both normal CORS requests); this was checked with the production build at 390 px and 1440 px. HTML is served with `max-age=0, must-revalidate`, so a new deploy shows up the next time the app is opened.
 
-Stage 5 may add cross-origin isolation for offline SQLite on web (`Cross-Origin-Opener-Policy: same-origin` + `Cross-Origin-Embedder-Policy: require-corp`, the only form iPhone Safari supports). The comment in `_headers` explains it.
+No cross-origin isolation (COOP/COEP): offline data on web uses IndexedDB, which doesn't need it, so Google profile pictures and avatars keep loading. The service worker (`/sw.js`) is served with `Cache-Control: no-cache` so updates are found.
 
 ### On the iPhone
 
@@ -243,4 +256,16 @@ After pulling new code:
 npm run deploy:web
 ```
 
+`deploy:web` builds the app, generates the service worker (`dist/sw.js`, the list of files to keep for offline use) and uploads. People with the app open get an "Update available, tap to reload" banner (the new version downloads in the background); otherwise they get it the next time they open the app and tap the banner. Nothing to clear by hand.
+
 Apply new migrations first (and `npm run deploy:functions` if `supabase/functions` changed). Every deploy also gets its own preview URL (`<hash>.lightweightbaby.pages.dev`); to sign in on those, add `https://*.lightweightbaby.pages.dev/**` to the Supabase Redirect URLs. Roll back in Cloudflare → Workers & Pages → lightweightbaby → Deployments → "Rollback" on an older deployment.
+
+## 10. Offline mode
+
+- **Web / iPhone:** works after the app has been opened once online (it then has the app itself and your data). Install it on the home screen and open it once with a connection after each update. Data lives in IndexedDB; the service worker never stores Supabase responses.
+- **Android:** offline data lives in SQLite. The new native modules (expo-sqlite, expo-network, expo-local-authentication) need a new build:
+  ```bash
+  npx eas-cli@latest build --profile preview --platform android
+  ```
+- Changes made offline are sent automatically when the connection is back. "N changes waiting to sync" in the tab headers opens the Sync screen; changes the server refused show there with the reason (Retry / Discard).
+- If a migration fails halfway, re-run **that same file** only. Re-running an older file after a newer one can put back an older version of a server function (e.g. `save_workout` without last-write-wins).

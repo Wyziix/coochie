@@ -6,8 +6,11 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { useTheme } from '@/hooks/useTheme';
+import { startNetworkWatch } from '@/lib/offline/network';
 import { createQueryClient } from '@/lib/queryClient';
 import { toNavigationTheme } from '@/lib/theme/navigation';
+
+startNetworkWatch();
 
 export function AppProviders({ children }: { children: ReactNode }) {
   const [queryClient] = useState(createQueryClient);

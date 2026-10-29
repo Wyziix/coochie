@@ -11,6 +11,7 @@ export const template: Template = {
   is_hidden: false,
   created_at: '',
   updated_at: '',
+  client_updated_at: null,
   exercises: [
     {
       id: 'te1',

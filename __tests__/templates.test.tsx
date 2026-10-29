@@ -102,7 +102,7 @@ describe('templates', () => {
       null,
       { p_template: { name: string }; p_exercises: { exercise_id: string; target_sets: number }[] },
     ];
-    expect(id).toBeNull();
+    expect(id).toMatch(/^[0-9a-f-]{36}$/); // the app picks the id of a new template
     expect(payload.p_template.name).toBe('Arms');
     expect(payload.p_exercises.map((e) => [e.exercise_id, e.target_sets])).toEqual([
       ['ex-plank', 3],
@@ -117,7 +117,10 @@ describe('templates', () => {
     expect(screen.getByDisplayValue('Push (copy)')).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: 'Save template' }));
     await waitFor(() =>
-      expect(templatesMock.saveTemplate).toHaveBeenCalledWith(null, expect.anything()),
+      expect(templatesMock.saveTemplate).toHaveBeenCalledWith(
+        expect.not.stringMatching(/^tpl-push$/),
+        expect.anything(),
+      ),
     );
   });
 });
@@ -162,8 +165,9 @@ describe('past workouts', () => {
   it('deletes a past workout after confirming', async () => {
     await renderRouter(appDir, { initialUrl: '/workouts/w-1' });
     await fireEvent.press(await screen.findByRole('button', { name: 'Delete workout' }));
+    // Queued with the time it was done, then sent through delete_workout_at.
     await waitFor(() =>
-      expect(workoutsMock.deleteWorkout).toHaveBeenCalledWith('w-1', expect.anything()),
+      expect(workoutsMock.deleteWorkoutAt).toHaveBeenCalledWith('w-1', expect.any(String)),
     );
   });
 
@@ -172,9 +176,14 @@ describe('past workouts', () => {
     await fireEvent.press(await screen.findByRole('button', { name: 'Save as template' }));
     await fireEvent.changeText(screen.getByLabelText('Template name'), 'Bench day');
     await fireEvent.press(screen.getAllByRole('button', { name: 'Save template' }).at(-1)!);
-    await waitFor(() =>
-      expect(templatesMock.templateFromWorkout).toHaveBeenCalledWith('w-1', 'Bench day'),
-    );
+    // Built on the device (works offline), saved through save_template.
+    await waitFor(() => expect(templatesMock.saveTemplate).toHaveBeenCalled());
+    const [, payload] = templatesMock.saveTemplate.mock.calls[0]! as unknown as [
+      string,
+      { p_template: { name: string }; p_exercises: { exercise_id: string }[] },
+    ];
+    expect(payload.p_template.name).toBe('Bench day');
+    expect(payload.p_exercises.length).toBeGreaterThan(0);
   });
 });
 

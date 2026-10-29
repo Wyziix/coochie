@@ -1,7 +1,9 @@
 import type { Session } from '@supabase/supabase-js';
+import { onlineManager } from '@tanstack/react-query';
 
 import type { Exercise } from '@/lib/api/exercises';
 import type { Profile } from '@/lib/api/profiles';
+import { useOutboxStore } from '@/lib/offline/outbox';
 import { useAuthStore } from '@/stores/authStore';
 
 // In-memory stand-ins for Supabase used by screen and routing tests.
@@ -80,6 +82,10 @@ export function resetBackend({
   backend.listeners.clear();
   // The auth store is a module-level singleton; start each test like a fresh app launch.
   useAuthStore.setState({ status: 'loading', session: null });
+  // Fresh device: no offline data, nothing queued, online.
+  jest.requireMock('@/lib/offline/storage').__memory.clear();
+  useOutboxStore.setState({ userId: null, items: [], loaded: false, sending: [] });
+  onlineManager.setOnline(true);
 }
 
 function emit(event: string) {
@@ -93,6 +99,7 @@ const client = {
       listener('INITIAL_SESSION', backend.session);
       return { data: { subscription: { unsubscribe: () => backend.listeners.delete(listener) } } };
     },
+    getSession: jest.fn(async () => ({ data: { session: backend.session }, error: null })),
     signOut: jest.fn(async () => {
       backend.session = null;
       emit('SIGNED_OUT');
@@ -174,6 +181,11 @@ export const exercisesMock = {
   fetchRestSettings: jest.fn(async () => ({ 'ex-bench': 120 })),
   fetchRecentExerciseIds: jest.fn(async () => ['ex-squat']),
   saveRestSetting: jest.fn(async () => {}),
+  upsertCustomExercise: jest.fn(async (_userId: string, id: string, input: Partial<Exercise>) => {
+    const row = fakeExercise({ name: 'Custom', ...input, id, owner_id: USER_ID });
+    exercisesState.list = [...exercisesState.list.filter((e) => e.id !== id), row];
+    return row;
+  }),
   fetchLastSets: jest.fn(async () => [
     {
       exercise_id: 'ex-bench',
@@ -208,6 +220,7 @@ const savedWorkout = (id: string, startedAt = '2026-10-30T10:00:00Z') => ({
   template_id: null,
   created_at: '',
   updated_at: '',
+  client_updated_at: null,
 });
 
 export const workoutsMock = {
@@ -222,7 +235,7 @@ export const workoutsMock = {
   fetchWorkoutsBetween: jest.fn(async () => [
     { ...savedWorkout('w-1', new Date().toISOString()), set_count: 4 },
   ]),
-  deleteWorkout: jest.fn(async () => {}),
+  deleteWorkoutAt: jest.fn(async () => {}),
   fetchWorkout: jest.fn(async (id: string) => ({
     ...savedWorkout(id),
     sets: [
@@ -302,21 +315,23 @@ export function resetTemplates() {
 }
 resetTemplates();
 
+// Saved templates show up in later fetches, like on the real server.
 const saveTemplateImpl = (owner: string | null) =>
-  jest.fn(async (id: string | null, payload: { p_template: { name: string } }) => ({
-    id: id ?? 'tpl-new',
-    owner_id: owner,
-    name: payload.p_template.name,
-  }));
+  jest.fn(async (id: string | null, payload: { p_template: { name: string } }) => {
+    const saved = { id: id ?? 'tpl-new', owner_id: owner, name: payload.p_template.name };
+    const list = templatesState.list as { id: string }[];
+    templatesState.list = list.some((t) => t.id === saved.id)
+      ? list.map((t) => (t.id === saved.id ? { ...t, ...saved } : t))
+      : [...list, { ...list[0], ...saved, program: null, exercises: [] }];
+    return saved;
+  });
 
 export const templatesMock = {
   fetchTemplates: jest.fn(async () => templatesState.list),
   saveTemplate: saveTemplateImpl(USER_ID),
-  deleteTemplate: jest.fn(async () => {}),
-  templateFromWorkout: jest.fn(async (_w: string, name: string) => ({
-    id: 'tpl-from-workout',
-    name,
-  })),
+  deleteTemplateAt: jest.fn(async (id: string) => {
+    templatesState.list = (templatesState.list as { id: string }[]).filter((t) => t.id !== id);
+  }),
   adminSaveTemplate: saveTemplateImpl(null),
   adminSetTemplateHidden: jest.fn(async (id: string, hidden: boolean) => ({
     id,

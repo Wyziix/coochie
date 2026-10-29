@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import { SyncStatus } from '@/components/offline/SyncStatus';
 import { useTheme } from '@/hooks/useTheme';
 
 import { Text } from './Text';
@@ -26,6 +27,7 @@ export function Header({ title, subtitle, left, right }: HeaderProps) {
             {subtitle}
           </Text>
         ) : null}
+        <SyncStatus />
       </View>
       {right}
     </View>

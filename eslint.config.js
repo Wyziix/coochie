@@ -7,7 +7,15 @@ module.exports = defineConfig([
   expoConfig,
   prettierRecommended,
   {
-    ignores: ['dist/*', '.expo/*', 'node_modules/*', 'supabase/functions/*', 'coverage/*'],
+    ignores: [
+      'dist/*',
+      '.expo/*',
+      'node_modules/*',
+      'supabase/functions/*',
+      'coverage/*',
+      // Plain service-worker script, not part of the app bundle.
+      'scripts/sw.template.js',
+    ],
   },
   {
     rules: {

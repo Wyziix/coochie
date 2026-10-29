@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Platform, ScrollView, View } from 'react-native';
 
 import { NewSecretFields, SecretInput } from '@/components/photos/SecretFields';
+import { OnlineOnly } from '@/components/offline/NeedsConnection';
 import { InfoRow } from '@/components/profile/InfoRow';
 import { Button, Card, ErrorState, LoadingState, Text } from '@/components/ui';
 import { useForgotPhotoLock } from '@/hooks/useForgotPhotoLock';
@@ -28,6 +29,14 @@ const STATE_LABELS = { setup: 'Not set up', pin: 'PIN', password: 'Password', no
 
 /** Profile → Photo lock: set, change or remove the PIN/password, biometrics (Android). */
 export default function PhotoLockScreen() {
+  return (
+    <OnlineOnly message="The photo lock is checked on the server, so changing it needs a connection.">
+      <PhotoLockSettings />
+    </OnlineOnly>
+  );
+}
+
+function PhotoLockSettings() {
   const theme = useTheme();
   const queryClient = useQueryClient();
   const status = useLockStatus();

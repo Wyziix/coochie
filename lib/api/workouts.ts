@@ -2,6 +2,11 @@ import { getSupabase } from '@/lib/supabase';
 import type { Tables } from '@/types/database';
 import type { toSavePayload } from '@/lib/workout/payload';
 
+/** save_workout arguments; the sync queue adds when the change was made. */
+export type SavePayload = ReturnType<typeof toSavePayload> & {
+  p_workout: { client_updated_at?: string };
+};
+
 export type Workout = Tables<'workouts'>;
 export type WorkoutSet = Tables<'workout_sets'>;
 export type WorkoutSummary = Workout & { set_count: number };
@@ -15,7 +20,11 @@ const summarize = (rows: (Workout & { workout_sets: unknown })[]): WorkoutSummar
     set_count: (workout_sets as { count: number }[])[0]?.count ?? 0,
   }));
 
-export async function saveWorkout(payload: ReturnType<typeof toSavePayload>): Promise<Workout> {
+/**
+ * Null when the workout was deleted (on another device) after this change was
+ * made; the stored row when a newer change already won.
+ */
+export async function saveWorkout(payload: SavePayload): Promise<Workout | null> {
   const { data, error } = await getSupabase().rpc('save_workout', payload);
   if (error) throw error;
   return data;
@@ -68,8 +77,14 @@ export async function fetchWorkoutsBetween(from: Date, to: Date): Promise<Workou
   return summarize(data);
 }
 
-/** Server deletes the workout and its sets and recomputes anything derived from it. */
-export async function deleteWorkout(id: string): Promise<void> {
-  const { error } = await getSupabase().rpc('delete_workout', { p_id: id });
+/**
+ * Server deletes the workout and its sets and recomputes anything derived
+ * from it, unless it was edited after `deletedAt` (last write wins).
+ */
+export async function deleteWorkoutAt(id: string, deletedAt: string): Promise<void> {
+  const { error } = await getSupabase().rpc('delete_workout_at', {
+    p_id: id,
+    p_deleted_at: deletedAt,
+  });
   if (error) throw error;
 }

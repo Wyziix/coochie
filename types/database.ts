@@ -214,6 +214,8 @@ export type Database = {
           is_hidden: boolean;
           created_at: string;
           updated_at: string;
+          /** When the last change was made on the device (last write wins). */
+          client_updated_at: string | null;
         };
         Insert: never;
         Update: never;
@@ -280,6 +282,8 @@ export type Database = {
           template_id: string | null;
           created_at: string;
           updated_at: string;
+          /** When the last change was made on the device (last write wins). */
+          client_updated_at: string | null;
         };
         Insert: never;
         Update: {
@@ -387,6 +391,8 @@ export type Database = {
         }[];
       };
       weekly_overview: { Args: { p_from: string; p_to: string }; Returns: Json };
+      delete_workout_at: { Args: { p_id: string; p_deleted_at: string }; Returns: undefined };
+      delete_template: { Args: { p_id: string; p_deleted_at?: string | null }; Returns: undefined };
       photo_lock_status: { Args: Record<string, never>; Returns: Json };
       photo_setup: { Args: { p_kind: string; p_secret: string }; Returns: Json };
       photo_unlock: {

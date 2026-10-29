@@ -2,12 +2,10 @@
 # Nothing here affects Google login (full-page redirect), Supabase calls (CORS)
 # or photo uploads (Edge Function, CORS).
 #
-# Stage 5 (offline on web) may need cross-origin isolation for SQLite. iPhone
-# Safari only supports the strict form, so it would be:
-#   Cross-Origin-Opener-Policy: same-origin
-#   Cross-Origin-Embedder-Policy: require-corp
-# Progress photos are already shown as same-origin blob: URLs so they keep
-# working with it; avatars and other cross-origin images would need checking.
+# No cross-origin isolation (COOP/COEP): offline data on web lives in
+# IndexedDB, which doesn't need it. Turning on the strict `require-corp` form
+# (the only one iPhone Safari supports) would block cross-origin images such as
+# Google profile pictures and avatars.
 
 /*
   X-Content-Type-Options: nosniff
@@ -21,3 +19,7 @@
 
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
+
+# Service worker: always check for a new version.
+/sw.js
+  Cache-Control: no-cache

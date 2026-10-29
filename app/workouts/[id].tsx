@@ -5,6 +5,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { BottomSheet, Button, Card, ErrorState, Input, LoadingState, Text } from '@/components/ui';
 import { useProfile } from '@/hooks/useProfile';
 import { useTheme } from '@/hooks/useTheme';
+import type { SyncMark } from '@/lib/offline/overlay';
 import { useWorkoutRecords } from '@/hooks/useProgress';
 import { useTemplateFromWorkout } from '@/hooks/useTemplates';
 import { formatRecordValue, recordLabels } from '@/lib/progress/records';
@@ -50,6 +51,7 @@ export default function WorkoutSummaryScreen() {
   if (isPending) return <LoadingState />;
   if (error) return <ErrorState error={error} onRetry={() => refetch()} />;
   if (!workout) return <ErrorState title="Workout not found" message="It may have been deleted." />;
+  const sync = (workout as SyncMark).sync;
 
   function edit() {
     useEditWorkoutStore.getState().load(workoutForEditing(workout!, unit));
@@ -71,7 +73,7 @@ export default function WorkoutSummaryScreen() {
     });
     if (!ok) return;
     setActionError(null);
-    remove.mutate(workout!.id, {
+    remove.mutate(workout!, {
       onSuccess: () => (router.canGoBack() ? router.back() : router.replace('/workout')),
       onError: (e) => setActionError(`Couldn’t delete: ${describeError(e).message}`),
     });
@@ -81,7 +83,7 @@ export default function WorkoutSummaryScreen() {
     const name = templateName?.trim();
     if (!name) return;
     asTemplate.mutate(
-      { workoutId: workout!.id, name },
+      { workout: workout!, name },
       {
         onSuccess: (t) => {
           setTemplateName(null);
@@ -117,7 +119,16 @@ export default function WorkoutSummaryScreen() {
       <View style={{ gap: theme.spacing.xs }}>
         {finished ? (
           <Text variant="label" color="success">
-            Nice work. Saved.
+            {sync ? 'Nice work. Saved on this device.' : 'Nice work. Saved.'}
+          </Text>
+        ) : null}
+        {sync === 'waiting' ? (
+          <Text variant="caption" color="textMuted">
+            Waiting to sync. It’s sent automatically when you’re online; records are checked then.
+          </Text>
+        ) : sync === 'failed' ? (
+          <Text variant="caption" color="danger" onPress={() => router.push('/sync')}>
+            Couldn’t sync this workout. Tap to see why.
           </Text>
         ) : null}
         <Text variant="title">{workout.name}</Text>
