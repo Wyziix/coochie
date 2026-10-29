@@ -8,6 +8,7 @@ import { useAdminSaveExercise, useAdminSetExerciseHidden, useExercise } from '@/
 import { useTheme } from '@/hooks/useTheme';
 import { DuplicateExerciseError } from '@/lib/api/exercises';
 import { confirm } from '@/lib/confirm';
+import { describeError } from '@/lib/errors';
 
 /** Create (no id) or edit a global exercise. */
 export default function AdminExerciseScreen() {
@@ -34,7 +35,7 @@ export default function AdminExerciseScreen() {
     if (!ok) return;
     setHidden.mutate(
       { id: existing.id, hidden: hide },
-      { onError: () => setError('Couldn’t update. Try again.') },
+      { onError: (e) => setError(`Couldn’t update: ${describeError(e).message}`) },
     );
   }
 
@@ -75,7 +76,7 @@ export default function AdminExerciseScreen() {
             setError(
               e instanceof DuplicateExerciseError
                 ? e.message
-                : 'Couldn’t save. Only admins can change global exercises.',
+                : `Couldn’t save: ${describeError(e).message}`,
             );
           }
         }}

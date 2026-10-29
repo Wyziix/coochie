@@ -19,6 +19,7 @@ import { useRestTimerControls } from '@/hooks/useRestTimer';
 import { useTheme } from '@/hooks/useTheme';
 import { useSaveWorkout } from '@/hooks/useWorkouts';
 import { confirm } from '@/lib/confirm';
+import { describeError } from '@/lib/errors';
 import { formatDuration } from '@/lib/workout/format';
 import { countSets, liveVolume, toSavePayload } from '@/lib/workout/payload';
 import { useWorkoutStore } from '@/stores/workoutStore';
@@ -74,10 +75,8 @@ export default function ActiveWorkoutScreen() {
       await rest.skip();
       useWorkoutStore.getState().discard();
       router.replace({ pathname: '/workouts/[id]', params: { id: saved.id, finished: '1' } });
-    } catch {
-      setError(
-        'Couldn’t save. Your workout is kept on this device. Check your connection and try again.',
-      );
+    } catch (e) {
+      setError(`Couldn’t save: ${describeError(e).message} Your workout is kept on this device.`);
     }
   }
 

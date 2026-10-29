@@ -2,6 +2,7 @@ import { Pressable, StyleSheet } from 'react-native';
 
 import { useTheme } from '@/hooks/useTheme';
 
+import { CHIP_HEIGHT } from './ChipRow';
 import { Text } from './Text';
 
 export type ChipProps = {
@@ -36,7 +37,7 @@ export function Chip({
         },
       ]}
     >
-      <Text variant="label" color={selected ? 'onPrimary' : 'text'}>
+      <Text variant="label" color={selected ? 'onPrimary' : 'text'} numberOfLines={1}>
         {label}
       </Text>
     </Pressable>
@@ -45,7 +46,8 @@ export function Chip({
 
 const styles = StyleSheet.create({
   chip: {
-    minHeight: 34,
+    height: CHIP_HEIGHT,
+    flexShrink: 0,
     justifyContent: 'center',
     borderWidth: StyleSheet.hairlineWidth,
   },

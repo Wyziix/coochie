@@ -47,3 +47,25 @@ export function filterExercises(exercises: Exercise[], filter: ExerciseFilter): 
       return a.name.localeCompare(b.name);
     });
 }
+
+export type ExerciseListItem =
+  | { kind: 'header'; key: string; title: string }
+  | { kind: 'exercise'; key: string; exercise: Exercise };
+
+/**
+ * Puts recently used exercises (in recency order) in a "Recent" section above
+ * the rest. Without recent matches it's just the plain list.
+ */
+export function withRecentSection(results: Exercise[], recentIds: string[]): ExerciseListItem[] {
+  const byId = new Map(results.map((e) => [e.id, e]));
+  const recent = recentIds.map((id) => byId.get(id)).filter((e) => e !== undefined);
+  const item = (e: Exercise): ExerciseListItem => ({ kind: 'exercise', key: e.id, exercise: e });
+  if (recent.length === 0) return results.map(item);
+  const recentSet = new Set(recent.map((e) => e.id));
+  return [
+    { kind: 'header', key: 'h-recent', title: 'Recent' },
+    ...recent.map(item),
+    { kind: 'header', key: 'h-all', title: 'All exercises' },
+    ...results.filter((e) => !recentSet.has(e.id)).map(item),
+  ];
+}

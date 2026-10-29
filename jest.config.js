@@ -5,6 +5,7 @@ module.exports = {
     './jest.setup.tsx',
     '<rootDir>/node_modules/@react-native-google-signin/google-signin/jest/build/jest/setup.js',
   ],
+  setupFilesAfterEnv: ['./jest.after-env.ts'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
   },

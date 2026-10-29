@@ -119,3 +119,14 @@ export async function fetchLastSets(exerciseIds: string[]): Promise<LastSet[]> {
   if (error) throw error;
   return data;
 }
+
+/** Exercise ids from the user's most recent sets, newest first, no repeats. */
+export async function fetchRecentExerciseIds(limit = 10): Promise<string[]> {
+  const { data, error } = await getSupabase()
+    .from('workout_sets')
+    .select('exercise_id')
+    .order('created_at', { ascending: false })
+    .limit(300);
+  if (error) throw error;
+  return [...new Set(data.map((r) => r.exercise_id))].slice(0, limit);
+}

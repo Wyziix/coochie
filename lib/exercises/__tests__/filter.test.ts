@@ -1,5 +1,5 @@
 import type { Exercise } from '@/lib/api/exercises';
-import { filterExercises } from '@/lib/exercises/filter';
+import { filterExercises, withRecentSection } from '@/lib/exercises/filter';
 
 const ex = (p: Partial<Exercise>): Exercise => ({
   id: p.name!,
@@ -50,5 +50,26 @@ describe('filterExercises', () => {
   it('leaves hidden exercises out unless asked', () => {
     expect(names(filterExercises(list, {}))).not.toContain('Old Exercise');
     expect(names(filterExercises(list, { includeHidden: true }))).toContain('Old Exercise');
+  });
+});
+
+describe('withRecentSection', () => {
+  it('puts recent exercises first, in recency order, without repeating them below', () => {
+    const items = withRecentSection(list.slice(0, 3), [
+      'Tricep Pushdown (Cable)',
+      'Bench Press (Barbell)',
+    ]);
+    expect(items.map((i) => (i.kind === 'header' ? `# ${i.title}` : i.exercise.name))).toEqual([
+      '# Recent',
+      'Tricep Pushdown (Cable)',
+      'Bench Press (Barbell)',
+      '# All exercises',
+      'Bench Press (Dumbbell)',
+    ]);
+  });
+
+  it('is a plain list when nothing recent matches', () => {
+    const items = withRecentSection(list.slice(0, 2), ['not-there']);
+    expect(items.every((i) => i.kind === 'exercise')).toBe(true);
   });
 });

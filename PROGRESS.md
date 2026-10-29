@@ -149,3 +149,19 @@ Checks: typecheck, lint, prettier, 83 Jest tests, 72 DB checks (`npm run test:db
 - Rest notification on Android needs the dev build (not Expo Go) and notification permission; asked when you start the first workout
 - On iPhone (web app), the beep only plays while the app is open and the screen is on. iOS doesn't allow background alerts for web apps
 - The exercise list is fetched online; offline use comes in Stage 5
+
+## Stage 2 fixes (after testing on web)
+
+- **Filter chips squashed**: with a long list below, flexbox shrank the horizontal chip rows to a few pixels (react-native-web gives ScrollView `flexShrink: 1`). It only looked fine before because my test had a filtered, short list. New `ChipRow` component: fixed 36 px height, never shrinks, scrolls horizontally. Chips have a fixed height and one-line labels
+- **Nested `<button>` on web**: the Workout tab's "Resume" card was pressable _and_ contained the Resume button (react-native-web renders `role="button"` pressables as `<button>`). The card is no longer pressable. Exercise rows were already fine (row and ⓘ are siblings)
+- **Check so it can't come back**: after every Jest test, `jest.after-env.ts` walks the rendered tree and fails the test if any pressable sits inside another (`test-utils/nesting.ts`). `__tests__/all-screens.test.tsx` opens every route so every screen gets checked
+- **Max width on web**: `AppFrame` (web only) centers the app in a 600 px column with a border on wide screens; full width on phones
+- **Real error causes**: `lib/errors.ts` maps errors to "No connection", "Database not set up – the server is missing the “exercises” table…", "Not allowed", "Session expired", or the server's own message, and shows the raw code underneath. Used by every error screen and every "couldn't save" message
+- **Faster failures**: supabase-js retried each failed request 3 times and TanStack Query retried that 3 times (24 s before the offline message). supabase-js retries are now off; TanStack retries network errors once and never retries missing-table / permission / session errors (offline message in ~1 s)
+- **Picker**: tap a row to select (circle fills), sticky "Add (N)" button always visible (disabled at 0), **recently used exercises in a "Recent" section at the top**
+
+Verified in the dev server (where React prints nesting warnings) at 390 px and 1440 px: no console errors, chips 36 px tall with no overlap, column centered, missing-table and offline messages correct.
+
+## Planned for Stage 13 (polish)
+
+- **Muscle map**: front and back SVG body diagram highlighting the muscles worked (primary darker, secondary lighter). Shown on exercise details, the workout summary, and the weekly overview on Home. Must work on web and native (react-native-svg)

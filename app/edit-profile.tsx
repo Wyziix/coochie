@@ -10,6 +10,7 @@ import { useProfile, useSaveProfile } from '@/hooks/useProfile';
 import { useTheme } from '@/hooks/useTheme';
 import { useUsernameCheck } from '@/hooks/useUsernameCheck';
 import { UsernameTakenError } from '@/lib/api/profiles';
+import { describeError } from '@/lib/errors';
 import {
   changeUnits,
   draftFromProfile,
@@ -56,7 +57,7 @@ export default function EditProfileScreen() {
       router.back();
     } catch (e) {
       if (e instanceof UsernameTakenError) setErrors({ username: e.message });
-      else setFormError('Couldn’t save. Check your connection and try again.');
+      else setFormError(`Couldn’t save: ${describeError(e).message}`);
     }
   }
 
@@ -81,7 +82,7 @@ export default function EditProfileScreen() {
           />
           {avatar.isError ? (
             <Text variant="caption" color="danger">
-              Upload failed. Try a smaller photo.
+              Upload failed: {describeError(avatar.error).message}
             </Text>
           ) : null}
         </View>

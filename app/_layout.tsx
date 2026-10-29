@@ -2,6 +2,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 
+import { AppFrame } from '@/components/providers/AppFrame';
 import { AppProviders } from '@/components/providers/AppProviders';
 import { Button, ErrorState, LoadingState, Screen } from '@/components/ui';
 import { RestTimerWatcher } from '@/components/workout/RestTimerWatcher';
@@ -19,7 +20,9 @@ export default function RootLayout() {
 
   return (
     <AppProviders>
-      <RootNavigator />
+      <AppFrame>
+        <RootNavigator />
+      </AppFrame>
       <RestTimerWatcher />
     </AppProviders>
   );
@@ -43,7 +46,7 @@ function RootNavigator() {
   if (signedIn && profile.isError) {
     return (
       <Screen>
-        <ErrorState message="Couldn’t load your profile." onRetry={() => profile.refetch()} />
+        <ErrorState error={profile.error} onRetry={() => profile.refetch()} />
         <Button title="Log out" variant="ghost" onPress={() => signOut().catch(() => {})} />
       </Screen>
     );

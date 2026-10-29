@@ -15,6 +15,8 @@ export type ThemeColors = {
   warning: string;
   tabInactive: string;
   overlay: string;
+  /** Web only: the area around the centered app column on wide screens. */
+  frame: string;
 };
 
 export const colors: Record<ColorScheme, ThemeColors> = {
@@ -33,6 +35,7 @@ export const colors: Record<ColorScheme, ThemeColors> = {
     warning: '#B26A00',
     tabInactive: '#7A8191',
     overlay: 'rgba(0, 0, 0, 0.4)',
+    frame: '#E4E7EC',
   },
   dark: {
     background: '#0B0D10',
@@ -49,5 +52,6 @@ export const colors: Record<ColorScheme, ThemeColors> = {
     warning: '#F5A524',
     tabInactive: '#7A8191',
     overlay: 'rgba(0, 0, 0, 0.6)',
+    frame: '#000000',
   },
 };

@@ -45,8 +45,10 @@ describe('workout logging', () => {
 
     await fireEvent.press(screen.getByRole('button', { name: 'Add exercises' }));
     await waitFor(() => expect(screen).toHavePathname('/exercises/pick'));
-    // Hidden exercises aren't offered.
+    // Hidden exercises aren't offered; recently used ones come first.
     expect(screen.queryByText('Old Hidden Move')).toBeNull();
+    expect(await screen.findByText('Recent')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Add 0 exercises' })).toBeDisabled();
     await fireEvent.press(await screen.findByRole('checkbox', { name: 'Bench Press (Barbell)' }));
     await fireEvent.press(screen.getByRole('button', { name: 'Add 1 exercise' }));
     await waitFor(() => expect(screen).toHavePathname('/workouts/active'));

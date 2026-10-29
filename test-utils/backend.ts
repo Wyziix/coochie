@@ -171,6 +171,7 @@ export const exercisesMock = {
   ...actualExercises,
   fetchExercises: jest.fn(async () => exercisesState.list),
   fetchRestSettings: jest.fn(async () => ({ 'ex-bench': 120 })),
+  fetchRecentExerciseIds: jest.fn(async () => ['ex-squat']),
   saveRestSetting: jest.fn(async () => {}),
   fetchLastSets: jest.fn(async () => [
     {

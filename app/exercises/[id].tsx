@@ -11,10 +11,11 @@ import { useUserId } from '@/stores/authStore';
 export default function ExerciseDetailScreen() {
   const theme = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { data: exercise, isPending } = useExercise(id);
+  const { data: exercise, isPending, error, refetch } = useExercise(id);
   const userId = useUserId();
 
   if (isPending) return <LoadingState />;
+  if (error) return <ErrorState error={error} onRetry={() => refetch()} />;
   if (!exercise) return <ErrorState title="Exercise not found" />;
 
   return (

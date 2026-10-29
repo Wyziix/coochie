@@ -19,6 +19,9 @@ export function getSupabase(): SupabaseClient<Database> {
   }
 
   client = createClient<Database>(env.supabaseUrl, env.supabasePublishableKey, {
+    // Retries are handled once, by TanStack Query (lib/queryClient.ts), so a
+    // failure shows up in seconds instead of after retries stacked on retries.
+    db: { retry: false },
     auth: {
       // Encrypted with a key in SecureStore on native; localStorage on web.
       storage: sessionStorage,

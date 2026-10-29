@@ -31,11 +31,11 @@ function describeSet(s: SetRowData, unit: WeightUnit): string {
 export default function WorkoutSummaryScreen() {
   const theme = useTheme();
   const { id, finished } = useLocalSearchParams<{ id: string; finished?: string }>();
-  const { data: workout, isPending, isError, refetch } = useWorkout(id);
+  const { data: workout, isPending, error, refetch } = useWorkout(id);
   const unit = useProfile().data?.units ?? 'kg';
 
   if (isPending) return <LoadingState />;
-  if (isError) return <ErrorState onRetry={() => refetch()} />;
+  if (error) return <ErrorState error={error} onRetry={() => refetch()} />;
   if (!workout) return <ErrorState title="Workout not found" message="It may have been deleted." />;
 
   // Group sets by exercise block, keeping order.

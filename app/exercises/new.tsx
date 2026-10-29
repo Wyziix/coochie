@@ -6,6 +6,7 @@ import { ExerciseForm } from '@/components/exercises/ExerciseForm';
 import { useExercise, useSaveCustomExercise } from '@/hooks/useExercises';
 import { useTheme } from '@/hooks/useTheme';
 import { DuplicateExerciseError } from '@/lib/api/exercises';
+import { describeError } from '@/lib/errors';
 
 /** Create a custom exercise, or edit one of yours with ?id=. */
 export default function CustomExerciseScreen() {
@@ -36,7 +37,11 @@ export default function CustomExerciseScreen() {
             await save.mutateAsync({ id, input });
             router.back();
           } catch (e) {
-            setError(e instanceof DuplicateExerciseError ? e.message : 'Couldn’t save. Try again.');
+            setError(
+              e instanceof DuplicateExerciseError
+                ? e.message
+                : `Couldn’t save: ${describeError(e).message}`,
+            );
           }
         }}
       />

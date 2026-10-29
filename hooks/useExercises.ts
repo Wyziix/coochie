@@ -6,6 +6,7 @@ import {
   createCustomExercise,
   fetchExercises,
   fetchLastSets,
+  fetchRecentExerciseIds,
   fetchRestSettings,
   saveRestSetting,
   updateCustomExercise,
@@ -97,5 +98,13 @@ export function useAdminSetExerciseHidden() {
       adminSetExerciseHidden(id, hidden),
     onSuccess: (e) =>
       queryClient.setQueryData<Exercise[]>(exercisesKey, (l) => upsertInCache(l, e)),
+  });
+}
+
+export function useRecentExerciseIds() {
+  return useQuery({
+    queryKey: ['recent-exercises'],
+    queryFn: () => fetchRecentExerciseIds(),
+    staleTime: 5 * 60_000,
   });
 }

@@ -57,6 +57,6 @@ export function BottomSheet({ visible, onClose, title, children }: BottomSheetPr
 
 const styles = StyleSheet.create({
   root: { flex: 1, justifyContent: 'flex-end' },
-  sheet: { maxHeight: '85%', width: '100%', maxWidth: 640, alignSelf: 'center' },
+  sheet: { maxHeight: '85%', width: '100%', maxWidth: 600, alignSelf: 'center' },
   handle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginTop: 8 },
 });

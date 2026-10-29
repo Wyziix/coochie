@@ -22,7 +22,8 @@ export default function WorkoutScreen() {
   return (
     <Screen scroll header={<Header title="Workout" />}>
       {workout ? (
-        <Card onPress={() => router.push('/workouts/active')} accessibilityLabel="Resume workout">
+        // Not pressable itself: a pressable card containing a Button nests <button>s on web.
+        <Card>
           <Text variant="caption" color="primary">
             In progress · {formatDuration((now - Date.parse(workout.startedAt)) / 1000)}
           </Text>

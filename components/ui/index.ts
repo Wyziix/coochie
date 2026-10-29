@@ -3,6 +3,7 @@ export { BottomSheet, type BottomSheetProps } from './BottomSheet';
 export { Button, type ButtonProps, type ButtonVariant } from './Button';
 export { Card, type CardProps } from './Card';
 export { Chip, type ChipProps } from './Chip';
+export { CHIP_HEIGHT, ChipRow } from './ChipRow';
 export { EmptyState, type EmptyStateProps } from './EmptyState';
 export { ErrorState, type ErrorStateProps } from './ErrorState';
 export { Header, type HeaderProps } from './Header';

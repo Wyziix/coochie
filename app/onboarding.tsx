@@ -7,6 +7,7 @@ import { OptionList, SegmentedControl, Text } from '@/components/ui';
 import { useProfile, useSaveProfile } from '@/hooks/useProfile';
 import { useUsernameCheck } from '@/hooks/useUsernameCheck';
 import { UsernameTakenError } from '@/lib/api/profiles';
+import { describeError } from '@/lib/errors';
 import {
   changeUnits,
   draftFromProfile,
@@ -72,7 +73,7 @@ export default function OnboardingScreen() {
         setIndex(0);
         setError(e.message);
       } else {
-        setError('Couldn’t save. Check your connection and try again.');
+        setError(`Couldn’t save: ${describeError(e).message}`);
       }
     }
   }

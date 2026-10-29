@@ -24,6 +24,7 @@ export function useSaveWorkout() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['workouts'] });
       queryClient.invalidateQueries({ queryKey: ['last-sets'] });
+      queryClient.invalidateQueries({ queryKey: ['recent-exercises'] });
     },
   });
 }

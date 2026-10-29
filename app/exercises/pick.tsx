@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ExerciseBrowser } from '@/components/exercises/ExerciseBrowser';
 import { ExerciseRow } from '@/components/exercises/ExerciseRow';
 import { Button } from '@/components/ui';
-import { useExercises, useRestSettings } from '@/hooks/useExercises';
+import { useExercises, useRecentExerciseIds, useRestSettings } from '@/hooks/useExercises';
 import { useTheme } from '@/hooks/useTheme';
 import { useWorkoutStore } from '@/stores/workoutStore';
 
@@ -16,6 +16,7 @@ export default function PickExercisesScreen() {
   const insets = useSafeAreaInsets();
   const { data: exercises } = useExercises();
   const { data: restSettings } = useRestSettings();
+  const { data: recentIds } = useRecentExerciseIds();
   const [selected, setSelected] = useState<string[]>([]);
 
   const toggle = (id: string) =>
@@ -47,6 +48,7 @@ export default function PickExercisesScreen() {
         }}
       />
       <ExerciseBrowser
+        recentIds={recentIds}
         renderItem={(e) => (
           <ExerciseRow
             exercise={e}
@@ -56,23 +58,24 @@ export default function PickExercisesScreen() {
           />
         )}
       />
-      {selected.length > 0 ? (
-        <View
-          style={{
-            padding: theme.spacing.lg,
-            paddingBottom: insets.bottom + theme.spacing.lg,
-            borderTopWidth: StyleSheet.hairlineWidth,
-            borderTopColor: theme.colors.border,
-            backgroundColor: theme.colors.surface,
-          }}
-        >
-          <Button
-            title={`Add ${selected.length} exercise${selected.length === 1 ? '' : 's'}`}
-            onPress={add}
-            fullWidth
-          />
-        </View>
-      ) : null}
+      {/* Always visible so the screen doesn't jump when the first row is tapped. */}
+      <View
+        style={{
+          padding: theme.spacing.lg,
+          paddingBottom: insets.bottom + theme.spacing.lg,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopColor: theme.colors.border,
+          backgroundColor: theme.colors.surface,
+        }}
+      >
+        <Button
+          title={`Add (${selected.length})`}
+          accessibilityLabel={`Add ${selected.length} exercise${selected.length === 1 ? '' : 's'}`}
+          onPress={add}
+          disabled={selected.length === 0}
+          fullWidth
+        />
+      </View>
     </View>
   );
 }
