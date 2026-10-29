@@ -1,24 +1,75 @@
-import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
+import { act, fireEvent, renderRouter, screen, waitFor } from 'expo-router/testing-library';
 import path from 'path';
+
+import {
+  backend,
+  fakeProfile,
+  fakeSession,
+  onboardedProfile,
+  resetBackend,
+} from '@/test-utils/backend';
+
+jest.mock('@/lib/env', () => require('@/test-utils/backend').envMock);
+jest.mock('@/lib/supabase', () => require('@/test-utils/backend').supabaseMock);
+jest.mock('@/lib/api/profiles', () => require('@/test-utils/backend').profilesMock);
 
 const appDir = path.resolve(__dirname, '../app');
 
-describe('tab navigation', () => {
-  it('opens on Home and switches between all tabs', async () => {
+describe('auth routing', () => {
+  it('shows only the sign-in screen when logged out', async () => {
+    resetBackend();
+    await renderRouter(appDir, { initialUrl: '/profile' });
+    await waitFor(() => expect(screen).toHavePathname('/sign-in'));
+    expect(screen.getByRole('button', { name: 'Continue with Google' })).toBeOnTheScreen();
+  });
+
+  it('sends a signed-in user without a finished profile to onboarding', async () => {
+    resetBackend({ session: fakeSession(), profile: fakeProfile() });
     await renderRouter(appDir, { initialUrl: '/' });
+    await waitFor(() => expect(screen).toHavePathname('/onboarding'));
+  });
+
+  it('opens the tabs for an onboarded user and switches between all of them', async () => {
+    resetBackend({ session: fakeSession(), profile: onboardedProfile() });
+    await renderRouter(appDir, { initialUrl: '/' });
+    expect(await screen.findByText('Hi, Gleb')).toBeOnTheScreen();
     expect(screen).toHavePathname('/');
 
-    const tabs = [
+    for (const tab of [
       { label: 'Workout', path: '/workout' },
       { label: 'Progress', path: '/progress' },
       { label: 'Ranking', path: '/ranking' },
       { label: 'Profile', path: '/profile' },
       { label: 'Home', path: '/' },
-    ];
-
-    for (const tab of tabs) {
+    ]) {
       await fireEvent.press(screen.getByRole('button', { name: new RegExp(tab.label) }));
       expect(screen).toHavePathname(tab.path);
     }
+  });
+
+  it('returns to sign-in after logging out', async () => {
+    resetBackend({ session: fakeSession(), profile: onboardedProfile() });
+    await renderRouter(appDir, { initialUrl: '/profile' });
+    await waitFor(() => expect(screen.getByText('@gleb')).toBeOnTheScreen());
+
+    // confirm() uses Alert on native: auto-press the destructive button.
+    const { Alert } = require('react-native');
+    jest.spyOn(Alert, 'alert').mockImplementation((...args: unknown[]) => {
+      const buttons = args[2] as { style?: string; onPress?: () => void }[];
+      buttons.find((b) => b.style === 'destructive')?.onPress?.();
+    });
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Log out' }));
+    await waitFor(() => expect(screen).toHavePathname('/sign-in'));
+    expect(backend.session).toBeNull();
+  });
+
+  it('opens edit profile from the profile tab', async () => {
+    resetBackend({ session: fakeSession(), profile: onboardedProfile() });
+    await renderRouter(appDir, { initialUrl: '/profile' });
+    await waitFor(() => expect(screen.getByText('@gleb')).toBeOnTheScreen());
+    await fireEvent.press(screen.getByRole('button', { name: 'Edit profile' }));
+    await waitFor(() => expect(screen).toHavePathname('/edit-profile'));
+    await act(async () => {});
   });
 });

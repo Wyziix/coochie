@@ -23,7 +23,11 @@
     },
     "web": {
       "output": "single",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./public/favicon.png",
+      "name": "LightweightBaby",
+      "shortName": "LightweightBaby",
+      "themeColor": "#0B0D10",
+      "backgroundColor": "#0B0D10"
     },
     "plugins": [
       "expo-router",
@@ -42,7 +46,16 @@
       ],
       "expo-status-bar",
       "expo-font",
-      "expo-asset"
+      "expo-asset",
+      "expo-image",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "LightweightBaby uses your photos to set a profile picture and save progress photos.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

@@ -1,7 +1,10 @@
 /** @type {import('jest').Config} */
 module.exports = {
   preset: 'jest-expo',
-  setupFiles: ['./jest.setup.tsx'],
+  setupFiles: [
+    './jest.setup.tsx',
+    '<rootDir>/node_modules/@react-native-google-signin/google-signin/jest/build/jest/setup.js',
+  ],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
   },

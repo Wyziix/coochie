@@ -23,7 +23,10 @@ export function getSupabase(): SupabaseClient<Database> {
       storage: AsyncStorage,
       autoRefreshToken: true,
       persistSession: true,
-      detectSessionInUrl: false,
+      // Web signs in with a Google redirect that comes back with ?code=...,
+      // which the client exchanges for a session (PKCE). Native uses ID tokens.
+      detectSessionInUrl: Platform.OS === 'web',
+      flowType: 'pkce',
     },
   });
 

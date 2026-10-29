@@ -10,7 +10,9 @@ cp .env.example .env   # fill in Supabase URL + publishable key
 npm start              # then press i (iOS simulator) or a (Android emulator)
 ```
 
-The app runs without Supabase keys for now; the Profile tab shows whether they're set.
+Full setup (Supabase, Google sign-in, EAS builds): see `docs/SETUP.md`.
+
+Android: APK through EAS. iPhone: the web app, added to the home screen (PWA).
 
 ## Scripts
 
