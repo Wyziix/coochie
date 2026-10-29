@@ -1,5 +1,13 @@
 # Progress
 
+App name: **LightweightBaby** · bundle ID / package `com.lightweightbaby.app` · slug `lightweightbaby`
+
+## Plan changes (agreed 2026-10-29)
+
+- **Stage 12 skipped.** No RevenueCat, no paywall, no premium tier. The server-side daily AI limit stays (Stage 6/7) and must be adjustable by an admin without a code change (a default limit plus per-user overrides in the database).
+- **Stage 13:** no App Store / Google Play checklist. Instead: EAS internal distribution, an Android APK shareable by link, plus instructions for installing on iOS.
+- **Account deletion stays** (Stage 11) even though we're not on the stores.
+
 ## Stage status
 
 | Stage | Name                                 | Status |
@@ -44,9 +52,9 @@ Checks: typecheck, lint, prettier and 14 Jest tests pass (`npm run check`). Web,
 - Env var is `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (Supabase's newer key name; the legacy anon key also works there)
 - `@expo/vector-icons` (Ionicons) for icons. Mocked in Jest because icon fonts can't load there
 - Theme toggle placed on the Profile tab for now; it moves to Settings in Stage 11
+- Renamed to LightweightBaby after Stage 0 (app.json name/slug/scheme, bundle ID, package.json name)
 
 ### Known issues
 
 - Not run on real iOS/Android simulators yet (none available in the build environment). Native bundles compile; first simulator run is on you
 - `expo-doctor`: 18/20 checks pass, the 2 failing ones need the Expo API, which was blocked in the build environment. Re-run locally
-- No iOS bundle identifier / Android package name set yet. Needed for Google Sign-In in Stage 1

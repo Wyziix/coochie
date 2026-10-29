@@ -1,6 +1,6 @@
-# Gym App
+# LightweightBaby
 
-Gym tracking app built with Expo (React Native), Expo Router and Supabase.
+Gym tracking app (LightweightBaby) built with Expo (React Native), Expo Router and Supabase.
 
 ## Setup
 

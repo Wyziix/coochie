@@ -1,14 +1,15 @@
 {
   "expo": {
-    "name": "Gym App",
-    "slug": "gym-app",
+    "name": "LightweightBaby",
+    "slug": "lightweightbaby",
     "version": "0.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "gymapp",
+    "scheme": "lightweightbaby",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "bundleIdentifier": "com.lightweightbaby.app"
     },
     "android": {
       "adaptiveIcon": {
@@ -17,7 +18,8 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.lightweightbaby.app"
     },
     "web": {
       "output": "single",
