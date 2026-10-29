@@ -5,7 +5,9 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { BottomSheet, Button, Card, ErrorState, Input, LoadingState, Text } from '@/components/ui';
 import { useProfile } from '@/hooks/useProfile';
 import { useTheme } from '@/hooks/useTheme';
+import { useWorkoutRecords } from '@/hooks/useProgress';
 import { useTemplateFromWorkout } from '@/hooks/useTemplates';
+import { formatRecordValue, recordLabels } from '@/lib/progress/records';
 import { useDeleteWorkout, useWorkout } from '@/hooks/useWorkouts';
 import { confirm } from '@/lib/confirm';
 import { describeError } from '@/lib/errors';
@@ -40,6 +42,7 @@ export default function WorkoutSummaryScreen() {
   const { data: workout, isPending, error, refetch } = useWorkout(id);
   const unit = useProfile().data?.units ?? 'kg';
   const remove = useDeleteWorkout();
+  const records = useWorkoutRecords(id);
   const asTemplate = useTemplateFromWorkout();
   const [templateName, setTemplateName] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -134,6 +137,20 @@ export default function WorkoutSummaryScreen() {
         {stat('Volume', formatWeight(workout.total_volume_kg, unit))}
         {stat('Sets', String(workout.sets.length))}
       </Card>
+
+      {records.data?.length ? (
+        <Card>
+          <Text variant="label" color="success">
+            {records.data.length} personal record{records.data.length === 1 ? '' : 's'}
+          </Text>
+          {records.data.map((rec) => (
+            <Text key={`${rec.exercise_id}-${rec.record_type}-${rec.weight_kg}`} variant="caption">
+              {rec.exercise_name}: {recordLabels[rec.record_type]} {formatRecordValue(rec, unit)}{' '}
+              (was {formatRecordValue(rec, unit, rec.previous_value)})
+            </Text>
+          ))}
+        </Card>
+      ) : null}
 
       {blocks.map((block, i) => (
         <Card key={`${block.name}-${i}`}>

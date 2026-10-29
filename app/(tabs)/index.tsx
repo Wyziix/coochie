@@ -1,4 +1,7 @@
-import { Card, EmptyState, Header, Screen, Text } from '@/components/ui';
+import { router } from 'expo-router';
+
+import { WeeklyOverview } from '@/components/home/WeeklyOverview';
+import { Button, Header, Screen } from '@/components/ui';
 import { useProfile } from '@/hooks/useProfile';
 
 export default function HomeScreen() {
@@ -10,15 +13,8 @@ export default function HomeScreen() {
       scroll
       header={<Header title={name ? `Hi, ${name}` : 'Home'} subtitle="Your week at a glance" />}
     >
-      <Card>
-        <Text variant="heading">This week</Text>
-        <Text color="textMuted">Workouts, volume and muscle groups will show here.</Text>
-      </Card>
-      <EmptyState
-        icon="barbell-outline"
-        title="No workouts yet"
-        message="Start one from the Workout tab."
-      />
+      <WeeklyOverview />
+      <Button title="Start a workout" onPress={() => router.push('/workout')} fullWidth />
     </Screen>
   );
 }

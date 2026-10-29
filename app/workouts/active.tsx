@@ -17,7 +17,10 @@ import { useLastSets } from '@/hooks/useExercises';
 import { useNow } from '@/hooks/useNow';
 import { useRestTimerControls } from '@/hooks/useRestTimer';
 import { useTheme } from '@/hooks/useTheme';
+import { useQueryClient } from '@tanstack/react-query';
+
 import { useSaveWorkout } from '@/hooks/useWorkouts';
+import { fetchWorkoutRecords } from '@/lib/api/progress';
 import { confirm } from '@/lib/confirm';
 import { describeError } from '@/lib/errors';
 import { formatDuration } from '@/lib/workout/format';
@@ -31,6 +34,7 @@ export default function ActiveWorkoutScreen() {
   const now = useNow(1000, workout !== null);
   const lastSets = useLastSets(workout?.exercises.map((e) => e.exerciseId) ?? []);
   const save = useSaveWorkout();
+  const queryClient = useQueryClient();
   const rest = useRestTimerControls();
   const [error, setError] = useState<string | null>(null);
   const insets = useSafeAreaInsets();
@@ -74,7 +78,18 @@ export default function ActiveWorkoutScreen() {
       const saved = await save.mutateAsync(toSavePayload(current));
       await rest.skip();
       useWorkoutStore.getState().discard();
-      router.replace({ pathname: '/workouts/[id]', params: { id: saved.id, finished: '1' } });
+      // The server computed records while saving; ask it what's new.
+      const records = await queryClient
+        .fetchQuery({
+          queryKey: ['workouts', 'records', saved.id],
+          queryFn: () => fetchWorkoutRecords(saved.id),
+        })
+        .catch(() => []);
+      router.replace(
+        records.length > 0
+          ? { pathname: '/workouts/celebrate', params: { id: saved.id } }
+          : { pathname: '/workouts/[id]', params: { id: saved.id, finished: '1' } },
+      );
     } catch (e) {
       setError(`Couldn’t save: ${describeError(e).message} Your workout is kept on this device.`);
     }

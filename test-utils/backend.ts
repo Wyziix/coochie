@@ -324,3 +324,196 @@ export const templatesMock = {
   })),
   adminDeleteTemplate: jest.fn(async () => {}),
 };
+
+// --- Stage 4: progress, body, photos ----------------------------------------
+
+export const progressState = {
+  newRecords: [] as unknown[],
+};
+
+export const progressMock = {
+  fetchWorkoutRecords: jest.fn(async () => progressState.newRecords),
+  fetchExerciseRecords: jest.fn(async () => [
+    {
+      id: 1,
+      user_id: USER_ID,
+      exercise_id: 'ex-bench',
+      record_type: 'heaviest_weight',
+      bucket_kg: 0,
+      value: 100,
+      weight_kg: 100,
+      reps: 3,
+      workout_id: 'w-1',
+      set_id: 's',
+      achieved_at: '2026-10-20T10:00:00Z',
+      previous_value: 95,
+    },
+    {
+      id: 2,
+      user_id: USER_ID,
+      exercise_id: 'ex-bench',
+      record_type: 'best_e1rm',
+      bucket_kg: 0,
+      value: 116.67,
+      weight_kg: 100,
+      reps: 5,
+      workout_id: 'w-1',
+      set_id: 's',
+      achieved_at: '2026-10-20T10:00:00Z',
+      previous_value: null,
+    },
+    {
+      id: 3,
+      user_id: USER_ID,
+      exercise_id: 'ex-bench',
+      record_type: 'reps_at_weight',
+      bucket_kg: 80,
+      value: 10,
+      weight_kg: 80,
+      reps: 10,
+      workout_id: 'w-1',
+      set_id: 's',
+      achieved_at: '2026-10-20T10:00:00Z',
+      previous_value: 8,
+    },
+  ]),
+  fetchRecentRecords: jest.fn(async () => [
+    {
+      id: 1,
+      user_id: USER_ID,
+      exercise_id: 'ex-bench',
+      record_type: 'heaviest_weight',
+      bucket_kg: 0,
+      value: 100,
+      weight_kg: 100,
+      reps: 3,
+      workout_id: 'w-1',
+      set_id: 's',
+      achieved_at: '2026-10-20T10:00:00Z',
+      previous_value: 95,
+      exercise: { id: 'ex-bench', name: 'Bench Press (Barbell)', type: 'weights' },
+    },
+  ]),
+  fetchExerciseHistory: jest.fn(async () => [
+    {
+      workout_id: 'w-0',
+      started_at: '2026-10-13T10:00:00Z',
+      max_weight_kg: 95,
+      best_e1rm_kg: 110.83,
+      volume_kg: 1425,
+      total_reps: 15,
+      max_duration_seconds: null,
+      total_distance_m: null,
+    },
+    {
+      workout_id: 'w-1',
+      started_at: '2026-10-20T10:00:00Z',
+      max_weight_kg: 100,
+      best_e1rm_kg: 116.67,
+      volume_kg: 1500,
+      total_reps: 15,
+      max_duration_seconds: null,
+      total_distance_m: null,
+    },
+  ]),
+  fetchTrainedExercises: jest.fn(async () => [
+    {
+      exercise_id: 'ex-bench',
+      name: 'Bench Press (Barbell)',
+      type: 'weights',
+      primary_muscle: 'chest',
+      sessions: 2,
+      last_performed: '2026-10-20T10:00:00Z',
+    },
+  ]),
+  fetchWeeklyOverview: jest.fn(async () => ({
+    workouts: 2,
+    volume_kg: 5200,
+    duration_seconds: 7200,
+    sets: 30,
+    muscles: [
+      { muscle: 'chest', sets: 9 },
+      { muscle: 'triceps', sets: 4.5 },
+    ],
+  })),
+};
+
+export const bodyState = { list: [] as unknown[] };
+
+export const bodyMock = {
+  fetchMeasurements: jest.fn(async () => bodyState.list),
+  saveMeasurement: jest.fn(async (input: Record<string, unknown>) => {
+    const row = {
+      id: `m-${bodyState.list.length + 1}`,
+      user_id: USER_ID,
+      created_at: '',
+      updated_at: '',
+      ...input,
+    };
+    bodyState.list = [row, ...bodyState.list];
+    if (typeof input.bodyweight_kg === 'number' && backend.profile) {
+      backend.profile = { ...backend.profile, bodyweight_kg: input.bodyweight_kg };
+    }
+    return row;
+  }),
+  deleteMeasurement: jest.fn(async () => {}),
+};
+
+export const photosState = { list: [] as unknown[] };
+
+export const photosMock = {
+  fetchPhotos: jest.fn(async () => photosState.list),
+  uploadPhoto: jest.fn(async () => {}),
+  deletePhoto: jest.fn(async () => {}),
+};
+
+export function resetProgress() {
+  progressState.newRecords = [];
+  bodyState.list = [
+    {
+      id: 'm-0',
+      user_id: USER_ID,
+      measured_on: '2026-10-01',
+      bodyweight_kg: 81,
+      body_fat_pct: null,
+      neck_cm: null,
+      shoulders_cm: null,
+      chest_cm: null,
+      waist_cm: 84,
+      hips_cm: null,
+      arm_cm: null,
+      thigh_cm: null,
+      calf_cm: null,
+      notes: null,
+      created_at: '',
+      updated_at: '',
+    },
+  ];
+  photosState.list = [
+    {
+      id: 'p-1',
+      user_id: USER_ID,
+      taken_on: '2026-10-20',
+      storage_path: `${USER_ID}/p-1.jpg`,
+      width: 1200,
+      height: 1600,
+      pose: 'front',
+      notes: null,
+      created_at: '',
+      url: 'https://test/p1.jpg',
+    },
+    {
+      id: 'p-2',
+      user_id: USER_ID,
+      taken_on: '2026-09-01',
+      storage_path: `${USER_ID}/p-2.jpg`,
+      width: 1200,
+      height: 1600,
+      pose: 'front',
+      notes: null,
+      created_at: '',
+      url: 'https://test/p2.jpg',
+    },
+  ];
+}
+resetProgress();

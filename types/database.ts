@@ -109,6 +109,100 @@ export type Database = {
         };
         Relationships: [];
       };
+      personal_records: {
+        Row: {
+          id: number;
+          user_id: string;
+          exercise_id: string;
+          record_type: Database['public']['Enums']['record_type'];
+          bucket_kg: number;
+          value: number;
+          weight_kg: number | null;
+          reps: number | null;
+          workout_id: string;
+          set_id: string | null;
+          achieved_at: string;
+          previous_value: number | null;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [
+          {
+            foreignKeyName: 'personal_records_exercise_id_fkey';
+            columns: ['exercise_id'];
+            isOneToOne: false;
+            referencedRelation: 'exercises';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      body_measurements: {
+        Row: {
+          id: string;
+          user_id: string;
+          measured_on: string;
+          bodyweight_kg: number | null;
+          body_fat_pct: number | null;
+          neck_cm: number | null;
+          shoulders_cm: number | null;
+          chest_cm: number | null;
+          waist_cm: number | null;
+          hips_cm: number | null;
+          arm_cm: number | null;
+          thigh_cm: number | null;
+          calf_cm: number | null;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string;
+          measured_on: string;
+          bodyweight_kg?: number | null;
+          body_fat_pct?: number | null;
+          neck_cm?: number | null;
+          shoulders_cm?: number | null;
+          chest_cm?: number | null;
+          waist_cm?: number | null;
+          hips_cm?: number | null;
+          arm_cm?: number | null;
+          thigh_cm?: number | null;
+          calf_cm?: number | null;
+          notes?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['body_measurements']['Insert']>;
+        Relationships: [];
+      };
+      progress_photos: {
+        Row: {
+          id: string;
+          user_id: string;
+          taken_on: string;
+          storage_path: string;
+          width: number | null;
+          height: number | null;
+          pose: 'front' | 'side' | 'back' | 'other';
+          notes: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string;
+          taken_on?: string;
+          storage_path: string;
+          width?: number | null;
+          height?: number | null;
+          pose?: 'front' | 'side' | 'back' | 'other';
+          notes?: string | null;
+        };
+        Update: {
+          taken_on?: string;
+          pose?: 'front' | 'side' | 'back' | 'other';
+          notes?: string | null;
+        };
+        Relationships: [];
+      };
       templates: {
         Row: {
           id: string;
@@ -255,6 +349,44 @@ export type Database = {
         Args: { p_id: string; p_hidden: boolean };
         Returns: Database['public']['Tables']['exercises']['Row'];
       };
+      workout_records: {
+        Args: { p_workout_id: string };
+        Returns: {
+          exercise_id: string;
+          exercise_name: string;
+          exercise_type: Database['public']['Enums']['exercise_type'];
+          record_type: Database['public']['Enums']['record_type'];
+          value: number;
+          previous_value: number;
+          weight_kg: number | null;
+          reps: number | null;
+        }[];
+      };
+      exercise_history: {
+        Args: { p_exercise_id: string; p_since?: string | null };
+        Returns: {
+          workout_id: string;
+          started_at: string;
+          max_weight_kg: number | null;
+          best_e1rm_kg: number | null;
+          volume_kg: number;
+          total_reps: number;
+          max_duration_seconds: number | null;
+          total_distance_m: number | null;
+        }[];
+      };
+      trained_exercises: {
+        Args: Record<string, never>;
+        Returns: {
+          exercise_id: string;
+          name: string;
+          type: Database['public']['Enums']['exercise_type'];
+          primary_muscle: Database['public']['Enums']['muscle_group'];
+          sessions: number;
+          last_performed: string;
+        }[];
+      };
+      weekly_overview: { Args: { p_from: string; p_to: string }; Returns: Json };
       save_template: {
         Args: { p_id: string | null; p_template: Json; p_exercises: Json };
         Returns: Database['public']['Tables']['templates']['Row'];
@@ -329,6 +461,8 @@ export type Database = {
         | 'other';
       exercise_type: 'weights' | 'bodyweight' | 'cardio' | 'timed';
       set_type: 'warmup' | 'normal' | 'drop' | 'failure';
+      record_type:
+        'heaviest_weight' | 'best_e1rm' | 'reps_at_weight' | 'session_volume' | 'longest_duration';
     };
     CompositeTypes: { [_ in never]: never };
   };

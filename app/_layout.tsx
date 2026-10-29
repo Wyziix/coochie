@@ -81,6 +81,13 @@ function RootNavigator() {
         <Stack.Screen name="exercises/new" options={{ headerShown: true, title: 'New exercise' }} />
         <Stack.Screen name="exercises/[id]" options={{ headerShown: true, title: 'Exercise' }} />
         <Stack.Screen name="workouts/edit" options={{ headerShown: true, title: 'Edit workout' }} />
+        <Stack.Screen name="workouts/celebrate" options={{ gestureEnabled: false }} />
+        <Stack.Screen name="body" options={{ headerShown: true, title: 'Body' }} />
+        <Stack.Screen
+          name="photos/index"
+          options={{ headerShown: true, title: 'Progress photos' }}
+        />
+        <Stack.Screen name="photos/compare" options={{ headerShown: true, title: 'Compare' }} />
         <Stack.Screen name="templates/[id]" options={{ headerShown: true, title: 'Template' }} />
         <Stack.Screen name="templates/edit" options={{ headerShown: true, title: 'Template' }} />
         <Stack.Screen name="history" options={{ headerShown: true, title: 'History' }} />

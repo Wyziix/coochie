@@ -17,6 +17,9 @@ export type ThemeColors = {
   overlay: string;
   /** Web only: the area around the centered app column on wide screens. */
   frame: string;
+  /** Full-screen photo viewer backdrop and text on it (same in both themes). */
+  media: string;
+  onMedia: string;
 };
 
 export const colors: Record<ColorScheme, ThemeColors> = {
@@ -36,6 +39,8 @@ export const colors: Record<ColorScheme, ThemeColors> = {
     tabInactive: '#7A8191',
     overlay: 'rgba(0, 0, 0, 0.4)',
     frame: '#E4E7EC',
+    media: '#000000',
+    onMedia: '#FFFFFF',
   },
   dark: {
     background: '#0B0D10',
@@ -53,5 +58,7 @@ export const colors: Record<ColorScheme, ThemeColors> = {
     tabInactive: '#7A8191',
     overlay: 'rgba(0, 0, 0, 0.6)',
     frame: '#000000',
+    media: '#000000',
+    onMedia: '#FFFFFF',
   },
 };

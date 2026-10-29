@@ -18,10 +18,10 @@ App name: **LightweightBaby** · bundle ID / package `com.lightweightbaby.app` �
 | Stage | Name                                 | Status |
 | ----- | ------------------------------------ | ------ |
 | 0     | Project setup                        | Done   |
-| 1     | Google login and onboarding          | –      |
-| 2     | Exercise library and workout logging | –      |
-| 3     | Templates and history                | –      |
-| 4     | Progress tracking                    | –      |
+| 1     | Google login and onboarding          | Done   |
+| 2     | Exercise library and workout logging | Done   |
+| 3     | Templates and history                | Done   |
+| 4     | Progress tracking                    | Done   |
 | 5     | Offline mode and sync                | –      |
 | 6     | Claude feedback                      | –      |
 | 7     | AI plan generator and coach chat     | –      |
@@ -200,6 +200,45 @@ Checks: typecheck, lint, prettier, 147 Jest tests (incl. no-nested-pressables on
 - Reloading the page on the template editor or the edit-workout screen goes back (the draft is in memory). Finished workouts and templates are saved; only unsaved edits are lost
 - Rep targets fill empty reps when you tick a set (like last time's values do); change them before ticking if you did fewer
 
+## Stage 4 – Progress tracking
+
+Built:
+
+- **Database** (`20261101000000_progress.sql`, idempotent):
+  - `personal_records`: one row per user, exercise and record type (heaviest weight, best estimated 1RM, most reps at each weight, best session volume, longest hold/cardio), with the set and workout it came from and the previous best. Clients can only read their own rows
+  - PRs are calculated on the server. `after_workout_change()` (called by `save_workout` and `delete_workout`) recalculates every exercise the workout had before and after the change, from all of the user's sets. Editing a set down or deleting the workout gives the previous best back its PR; removing an exercise from a workout does the same. Warm-up sets don't count; ties go to the earlier set
+  - `workout_records(workout)`: the PRs a workout set that beat an earlier best. The celebration after Finish shows exactly this list, nothing is calculated in the app
+  - `exercise_history`, `trained_exercises`, `weekly_overview` (workouts, volume, time, sets per muscle: primary = 1, secondary = 0.5)
+  - `body_measurements` (one entry per day: bodyweight, body fat, 8 tape measurements, notes; realistic ranges checked). A trigger copies the newest bodyweight to `profiles.bodyweight_kg`, so logging bodyweight updates the profile. Existing profile bodyweights are copied in as a first entry
+  - `progress_photos` + private storage bucket `progress-photos` (10 MB, JPEG/PNG/WebP). Storage policies only allow `<own user id>/...`; images are shown through signed URLs (1 h)
+  - Existing workouts are backfilled into PRs when the migration runs
+- **PR celebration** (`/workouts/celebrate`): after Finish, the app asks the server for the workout's new records. If there are any it shows them (trophy, "was 95 kg" → "100 kg"), then the summary; otherwise straight to the summary. The workout summary also lists its PRs
+- **Exercise progress** (exercise page → Progress tab, or tap an exercise on the Progress tab): PR cards, most reps by weight, chart of top weight / est. 1RM / volume (or time / distance for cardio and holds) over 1M, 3M, 6M, 1Y or all, and the session list. Tap or drag across the chart to read a point
+- **Body stats** (`/body`): log in kg or lbs / cm, chart per measurement, entries with edit and delete. Changing bodyweight in Edit profile also logs it for today
+- **Progress photos** (`/photos`): timeline grouped by date, pose (front / side / back / other), full-screen viewer with delete, compare two photos side by side with the bodyweight closest to each date. Photos are resized to max 1600 px and saved as JPEG (quality 0.75) before upload. On web a single "Choose or take a photo" button opens the iPhone picker (Take Photo / Photo Library); on Android there are separate camera and library buttons
+- **Progress tab**: latest bodyweight, photos, recent PRs, trained exercises
+- **Home**: this week's workouts (Mon–Sun), volume, time and sets per muscle
+
+Checks: typecheck, lint, prettier, 175 Jest tests, 159 DB checks (PRs over three workouts, ties, edit down, delete gives the previous best back, exercise removed by an edit, history and weekly overview, clients can't write PRs, profile bodyweight sync, photo folder isolation, private bucket). Android and iOS bundles export. Web tested at 390 px and 1440 px against a fake backend: finish a heavier bench → celebration with the server's record → summary, exercise chart (SVG, tap and drag), body log updating the profile, photo upload from a 3000×4000 1.1 MB JPEG → uploaded as 1200×1600, 148 KB. No console errors.
+
+### Decisions
+
+- **Charts: react-native-gifted-charts instead of victory-native.** victory-native draws with Skia; on web Skia needs CanvasKit, a 7 MB WebAssembly file (2.9 MB gzipped) that has to load before any chart shows, which is slow on an iPhone PWA over mobile data. gifted-charts draws with react-native-svg, which becomes plain SVG on web and native views on Android, with no extra download. Its own tap-to-focus doesn't work on web (it uses touch events SVG shapes don't get there), so the chart uses its own tap/drag layer instead
+- Estimated 1RM uses the Epley formula and only sets of 1–12 reps (higher reps give unreliable estimates)
+- "Most reps at a weight" counts per exact weight (e.g. 80 kg × 12). It's shown on the exercise page but not celebrated, otherwise almost every workout would show a celebration
+- Only real improvements are celebrated: the first time you do an exercise sets records but doesn't show the trophy
+- PRs are recalculated from all sets of the affected exercises, not adjusted step by step, so edits and deletes can't leave them out of sync
+- One body entry per day; logging again the same day updates it. Deleting all entries keeps the last bodyweight on the profile
+- Weekly overview on Home counts Monday–Sunday in the phone's time zone
+
+### Known issues
+
+- Photos are compressed in the app; a client could skip that and upload up to 10 MB (the bucket limit). Fine for two users
+- Signed photo URLs expire after 1 hour; leaving the photos page open longer needs the page to be reopened
+- The photo date is a text field (YYYY-MM-DD) like the edit-workout form; proper pickers are on the Stage 13 list
+
 ## Planned for Stage 13 (polish)
 
 - **Muscle map**: front and back SVG body diagram highlighting the muscles worked (primary darker, secondary lighter). Shown on exercise details, the workout summary, and the weekly overview on Home. Must work on web and native (react-native-svg)
+- **Date/time pickers** in the edit-workout form (and the body / photo date fields): native `<input type="date">` / `type="time"` on web, the native picker on Android
+- **Drafts survive a reload**: unsaved changes in the template editor and the edit-workout screen are kept when the page is reloaded

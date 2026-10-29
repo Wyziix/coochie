@@ -12,6 +12,9 @@ import {
 jest.mock('@/lib/env', () => require('@/test-utils/backend').envMock);
 jest.mock('@/lib/supabase', () => require('@/test-utils/backend').supabaseMock);
 jest.mock('@/lib/api/profiles', () => require('@/test-utils/backend').profilesMock);
+jest.mock('@/lib/api/progress', () => require('@/test-utils/backend').progressMock);
+jest.mock('@/lib/api/body', () => require('@/test-utils/backend').bodyMock);
+jest.mock('@/lib/api/photos', () => require('@/test-utils/backend').photosMock);
 jest.mock('@/lib/api/templates', () => require('@/test-utils/backend').templatesMock);
 jest.mock('@/lib/api/workouts', () => require('@/test-utils/backend').workoutsMock);
 jest.mock('@/lib/api/exercises', () => require('@/test-utils/backend').exercisesMock);

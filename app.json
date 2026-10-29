@@ -52,7 +52,7 @@
         "expo-image-picker",
         {
           "photosPermission": "LightweightBaby uses your photos to set a profile picture and save progress photos.",
-          "cameraPermission": false,
+          "cameraPermission": "LightweightBaby uses the camera to take progress photos.",
           "microphonePermission": false
         }
       ],

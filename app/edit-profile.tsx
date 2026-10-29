@@ -6,7 +6,9 @@ import { MeasurementInput } from '@/components/profile/MeasurementInput';
 import { UsernameField } from '@/components/profile/UsernameField';
 import { Avatar, Button, Card, Input, OptionList, SegmentedControl, Text } from '@/components/ui';
 import { useAvatarUpload } from '@/hooks/useAvatarUpload';
+import { useSaveMeasurement } from '@/hooks/useBody';
 import { useProfile, useSaveProfile } from '@/hooks/useProfile';
+import { dateKey } from '@/lib/history/calendar';
 import { useTheme } from '@/hooks/useTheme';
 import { useUsernameCheck } from '@/hooks/useUsernameCheck';
 import { UsernameTakenError } from '@/lib/api/profiles';
@@ -31,6 +33,7 @@ export default function EditProfileScreen() {
   const theme = useTheme();
   const { data: profile } = useProfile();
   const save = useSaveProfile();
+  const logBody = useSaveMeasurement();
   const avatar = useAvatarUpload();
   const [draft, setDraft] = useState<ProfileDraft>(() => draftFromProfile(profile));
   const [errors, setErrors] = useState<DraftErrors>({});
@@ -53,7 +56,15 @@ export default function EditProfileScreen() {
     setErrors(found);
     if (Object.keys(found).length > 0) return;
     try {
-      await save.mutateAsync(draftToUpdate(draft));
+      const update = draftToUpdate(draft);
+      await save.mutateAsync(update);
+      // A changed bodyweight also goes into the body log (today's entry), so the chart has it.
+      if (update.bodyweight_kg != null && update.bodyweight_kg !== profile?.bodyweight_kg) {
+        await logBody.mutateAsync({
+          measured_on: dateKey(new Date()),
+          bodyweight_kg: update.bodyweight_kg,
+        });
+      }
       router.back();
     } catch (e) {
       if (e instanceof UsernameTakenError) setErrors({ username: e.message });

@@ -97,6 +97,16 @@ select count(*) from public.exercises where owner_id is null;  -- 106
 select program, name from public.templates where owner_id is null order by program, position;  -- 8 rows
 ```
 
+### Stage 4 migration
+
+- `20261101000000_progress.sql`: personal records (calculated by `save_workout` / `delete_workout`, existing workouts backfilled), body measurements (newest bodyweight is copied to the profile), progress photos and the private `progress-photos` storage bucket with own-folder policies. Safe to run twice
+
+```sql
+select record_type, count(*) from public.personal_records group by 1;  -- rows if you've logged workouts
+select id, public, file_size_limit from storage.buckets where id = 'progress-photos';  -- public = false
+select policyname from pg_policies where schemaname = 'storage' and policyname like 'progress-photos:%';  -- 4 rows
+```
+
 ## 6. Enable the custom access token hook
 
 This puts `user_role` (`user` / `admin`) into every login token.
