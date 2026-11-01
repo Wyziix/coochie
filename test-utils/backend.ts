@@ -695,8 +695,75 @@ export const sampleReport = {
   see_professional: true,
 };
 
+const features = () => ({
+  workout_feedback: { limit: 3, used: 0, remaining: 3 },
+  plan: { limit: 2, used: 0, remaining: 2 },
+  coach: { limit: 15, used: 0, remaining: 15 },
+});
+
+export const samplePlan = {
+  name: '3-day full body',
+  description: 'Three full-body sessions a week for a beginner.',
+  weeks: 6,
+  progression: 'Add 2.5 kg when every set reaches the top of the rep range.',
+  notes: ['Warm up with two lighter sets.'],
+  days: [1, 2, 3].map((n) => ({
+    name: `Full body ${n}`,
+    focus: 'Squat, press and pull',
+    exercises: [
+      {
+        exercise_id: 'ex-bench',
+        name: 'Bench Press',
+        sets: 3,
+        reps_min: 6,
+        reps_max: 8,
+        rest_seconds: 150,
+      },
+      {
+        exercise_id: 'ex-squat',
+        name: 'Back Squat',
+        sets: 3,
+        reps_min: 5,
+        reps_max: 5,
+        rest_seconds: 180,
+      },
+      {
+        exercise_id: 'ex-curl',
+        name: 'Bicep Curl',
+        sets: 2,
+        reps_min: 10,
+        reps_max: 12,
+        rest_seconds: 60,
+      },
+    ],
+  })),
+};
+
+type CoachRow = { id: string; role: 'user' | 'assistant'; content: string; created_at: string };
+
 export const aiState = {
-  status: { enabled: true, paused_for_budget: false, limit: 3, used_today: 0, remaining: 3 },
+  status: {
+    enabled: true,
+    paused_for_budget: false,
+    limit: 3,
+    used_today: 0,
+    remaining: 3,
+    features: features(),
+  },
+  programs: [] as {
+    id: string;
+    name: string;
+    description: string;
+    weeks: number;
+    notes: string[];
+    created_at: string;
+  }[],
+  savedPlans: [] as { program: unknown; days: unknown[] }[],
+  coach: [] as CoachRow[],
+  /** What the fake coach streams back, in pieces. */
+  coachReply: ['Your bench ', 'went from 95x5 to 100x3.'],
+  /** Set to make the next coach message fail like the server would. */
+  coachError: null as null | { code: string; message: string },
   feedback: new Map<string, unknown>(),
   reports: [] as {
     id: string;
@@ -708,6 +775,11 @@ export const aiState = {
   settings: {
     enabled: true,
     daily_limit: 3,
+    limit_workout_feedback: 3,
+    limit_plan: 2,
+    limit_coach: 15,
+    max_tokens_plan: 1500,
+    max_tokens_coach: 400,
     daily_budget_usd: 0.5,
     model: 'claude-haiku-5-5',
     max_tokens_feedback: 400,
@@ -724,6 +796,7 @@ export const aiState = {
     user_id: string;
     username: string;
     display_name: string;
+    function: string;
     daily_limit: number;
   }[],
 };
@@ -735,13 +808,24 @@ export function resetAi() {
     limit: 3,
     used_today: 0,
     remaining: 3,
+    features: features(),
   };
+  aiState.programs = [];
+  aiState.savedPlans = [];
+  aiState.coach = [];
+  aiState.coachReply = ['Your bench ', 'went from 95x5 to 100x3.'];
+  aiState.coachError = null;
   aiState.feedback = new Map();
   aiState.reports = [];
   aiState.settings = {
     ...aiState.settings,
     enabled: true,
     daily_limit: 3,
+    limit_workout_feedback: 3,
+    limit_plan: 2,
+    limit_coach: 15,
+    max_tokens_plan: 1500,
+    max_tokens_coach: 400,
     model: 'claude-haiku-5-5',
   };
   aiState.overrides = [];
@@ -786,16 +870,21 @@ export const aiMock = {
     return { ...aiState.settings };
   }),
   fetchAiOverrides: jest.fn(async () => [...aiState.overrides]),
-  setAiOverride: jest.fn(async (userId: string, limit: number | null) => {
-    aiState.overrides = aiState.overrides.filter((o) => o.user_id !== userId);
-    if (limit !== null)
-      aiState.overrides.push({
-        user_id: userId,
-        username: 'girlfriend',
-        display_name: 'Anna',
-        daily_limit: limit,
-      });
-  }),
+  setAiOverride: jest.fn(
+    async (userId: string, limit: number | null, feature = 'workout_feedback') => {
+      aiState.overrides = aiState.overrides.filter(
+        (o) => !(o.user_id === userId && o.function === feature),
+      );
+      if (limit !== null)
+        aiState.overrides.push({
+          user_id: userId,
+          username: 'girlfriend',
+          display_name: 'Anna',
+          function: feature,
+          daily_limit: limit,
+        });
+    },
+  ),
   findUsers: jest.fn(async () => [
     { user_id: 'user-2', username: 'girlfriend', display_name: 'Anna', email: 'anna@test.dev' },
   ]),
@@ -816,6 +905,100 @@ export const aiMock = {
       output_tokens: 1500,
     },
   })),
+  // Plans: like the server, the plan limit is checked before Claude would be called.
+  generatePlan: jest.fn(async () => {
+    const f = aiState.status.features.plan;
+    if (!aiState.status.enabled)
+      throw new actualAi.AiError('disabled', 'AI features are switched off right now.');
+    if (f.remaining <= 0)
+      throw new actualAi.AiError(
+        'limit',
+        `You've used your ${f.limit} plan generations for today. You get new ones tomorrow.`,
+      );
+    f.used++;
+    f.remaining--;
+    return { plan: JSON.parse(JSON.stringify(samplePlan)) };
+  }),
+  savePlan: jest.fn(
+    async (
+      program: { name: string; weeks: number; notes: string[] },
+      days: { p_template: { name: string }; p_exercises: Record<string, unknown>[] }[],
+    ) => {
+      aiState.savedPlans.push({ program, days });
+      const id = `prog-${aiState.savedPlans.length}`;
+      // Like save_ai_plan(): one template per day, in the program.
+      templatesState.list = [
+        ...(templatesState.list as object[]),
+        ...days.map((d, position) => ({
+          id: `${id}-day-${position}`,
+          owner_id: USER_ID,
+          name: d.p_template.name,
+          notes: null,
+          program: null,
+          position,
+          is_hidden: false,
+          created_at: '',
+          updated_at: '',
+          client_updated_at: null,
+          program_id: id,
+          exercises: [],
+        })),
+      ] as typeof templatesState.list;
+      aiState.programs.push({
+        id,
+        name: program.name,
+        description: '',
+        weeks: program.weeks,
+        notes: program.notes,
+        created_at: '2026-11-01T10:00:00Z',
+      });
+      return id;
+    },
+  ),
+  fetchPrograms: jest.fn(async () => aiState.programs.map((p) => ({ ...p }))),
+  deleteProgram: jest.fn(async (id: string) => {
+    aiState.programs = aiState.programs.filter((p) => p.id !== id);
+    templatesState.list = (templatesState.list as { program_id?: string | null }[]).filter(
+      (t) => t.program_id !== id,
+    ) as typeof templatesState.list;
+  }),
+  fetchCoachMessages: jest.fn(async () => aiState.coach.map((m) => ({ ...m }))),
+  sendCoachMessage: jest.fn(async (question: string, onText: (t: string) => void) => {
+    const f = aiState.status.features.coach;
+    if (aiState.coachError) {
+      const e = aiState.coachError;
+      aiState.coachError = null;
+      throw new actualAi.AiError(e.code, e.message);
+    }
+    if (f.remaining <= 0)
+      throw new actualAi.AiError(
+        'limit',
+        `You've used your ${f.limit} coach messages for today. You get new ones tomorrow.`,
+      );
+    f.used++;
+    f.remaining--;
+    let text = '';
+    for (const piece of aiState.coachReply) {
+      text += piece;
+      onText(text);
+      await Promise.resolve();
+    }
+    const n = aiState.coach.length;
+    const saved: CoachRow[] = [
+      { id: `c-${n + 1}`, role: 'user', content: question, created_at: `2026-11-01T10:00:0${n}Z` },
+      {
+        id: `c-${n + 2}`,
+        role: 'assistant',
+        content: text,
+        created_at: `2026-11-01T10:00:0${n + 1}Z`,
+      },
+    ];
+    aiState.coach.push(...saved);
+    return saved;
+  }),
+  clearCoachChat: jest.fn(async () => {
+    aiState.coach = [];
+  }),
   generateWeeklyReportNow: jest.fn(async () => {
     const report = {
       id: 'rep-now',

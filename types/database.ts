@@ -258,6 +258,35 @@ export type Database = {
           updated_at: string;
           /** When the last change was made on the device (last write wins). */
           client_updated_at: string | null;
+          /** The saved plan (program) this template belongs to. */
+          program_id: string | null;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      user_programs: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          description: string | null;
+          weeks: number | null;
+          notes: Json;
+          source: string;
+          created_at: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      coach_messages: {
+        Row: {
+          id: string;
+          user_id: string;
+          role: 'user' | 'assistant';
+          content: string;
+          created_at: string;
         };
         Insert: never;
         Update: never;
@@ -442,10 +471,12 @@ export type Database = {
       admin_ai_settings: { Args: Record<string, never>; Returns: Json };
       admin_update_ai_settings: { Args: { p_changes: Json }; Returns: Json };
       admin_set_ai_override: {
-        Args: { p_user: string; p_limit: number | null };
+        Args: { p_user: string; p_limit: number | null; p_function: string };
         Returns: undefined;
       };
-      admin_ai_overrides: { Args: Record<string, never>; Returns: Json };
+      admin_ai_feature_overrides: { Args: Record<string, never>; Returns: Json };
+      save_ai_plan: { Args: { p_program: Json; p_days: Json }; Returns: string };
+      delete_program: { Args: { p_id: string }; Returns: undefined };
       admin_find_users: { Args: { p_query: string }; Returns: Json };
       admin_ai_usage: { Args: { p_days?: number }; Returns: Json };
       photo_lock_status: { Args: Record<string, never>; Returns: Json };

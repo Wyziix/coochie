@@ -4,7 +4,15 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { LineChartCard } from '@/components/charts/LineChartCard';
 import { InfoRow } from '@/components/profile/InfoRow';
-import { Button, Card, ErrorState, Input, LoadingState, Text } from '@/components/ui';
+import {
+  Button,
+  Card,
+  ErrorState,
+  Input,
+  LoadingState,
+  SegmentedControl,
+  Text,
+} from '@/components/ui';
 import {
   useAiOverrides,
   useAiSettings,
@@ -14,11 +22,19 @@ import {
   useUpdateAiSettings,
 } from '@/hooks/useAi';
 import { useTheme } from '@/hooks/useTheme';
-import { AiError, findUsers, type AiSettings } from '@/lib/api/ai';
+import { AiError, findUsers, type AiFeature, type AiSettings } from '@/lib/api/ai';
 import { confirm } from '@/lib/confirm';
 import { describeError } from '@/lib/errors';
 
 const usd = (n: number) => `$${Number(n).toFixed(n < 0.1 ? 4 : 2)}`;
+
+const FEATURES: { value: AiFeature; label: string }[] = [
+  { value: 'workout_feedback', label: 'Feedback' },
+  { value: 'plan', label: 'Plans' },
+  { value: 'coach', label: 'Coach' },
+];
+const featureLimit = (s: AiSettings, f: AiFeature) =>
+  f === 'plan' ? s.limit_plan : f === 'coach' ? s.limit_coach : s.limit_workout_feedback;
 
 /** Admin → AI: kill switch, limits, spending cap, model, overrides, usage. All logged. */
 export default function AdminAiScreen() {
@@ -37,7 +53,7 @@ export default function AdminAiScreen() {
     >
       <KillSwitch settings={settings.data} />
       <SettingsForm settings={settings.data} />
-      <Overrides defaultLimit={settings.data.daily_limit} />
+      <Overrides settings={settings.data} />
       <Usage />
       <GenerateNow />
     </ScrollView>
@@ -50,7 +66,8 @@ function KillSwitch({ settings }: { settings: AiSettings }) {
     if (settings.enabled) {
       const ok = await confirm({
         title: 'Turn AI off for everyone?',
-        message: 'Feedback and weekly reports stop right away until you turn it back on.',
+        message:
+          'Feedback, weekly reports, plans and the coach stop right away until you turn it back on.',
         confirmLabel: 'Turn off',
         destructive: true,
       });
@@ -80,11 +97,15 @@ function SettingsForm({ settings }: { settings: AiSettings }) {
   const theme = useTheme();
   const update = useUpdateAiSettings();
   const [form, setForm] = useState({
-    daily_limit: String(settings.daily_limit),
+    limit_workout_feedback: String(settings.limit_workout_feedback),
+    limit_plan: String(settings.limit_plan),
+    limit_coach: String(settings.limit_coach),
     daily_budget_usd: String(settings.daily_budget_usd),
     model: settings.model,
     max_tokens_feedback: String(settings.max_tokens_feedback),
     max_tokens_weekly: String(settings.max_tokens_weekly),
+    max_tokens_plan: String(settings.max_tokens_plan),
+    max_tokens_coach: String(settings.max_tokens_coach),
   });
   const [saved, setSaved] = useState(false);
   const set = (key: keyof typeof form) => (value: string) => {
@@ -93,16 +114,21 @@ function SettingsForm({ settings }: { settings: AiSettings }) {
   };
 
   function save() {
-    const changes: Partial<AiSettings> = {};
+    const changes: Record<string, number | string> = {};
     const num = (v: string) => Number(v.replace(',', '.'));
-    if (num(form.daily_limit) !== settings.daily_limit) changes.daily_limit = num(form.daily_limit);
-    if (num(form.daily_budget_usd) !== Number(settings.daily_budget_usd))
-      changes.daily_budget_usd = num(form.daily_budget_usd);
+    for (const key of [
+      'limit_workout_feedback',
+      'limit_plan',
+      'limit_coach',
+      'daily_budget_usd',
+      'max_tokens_feedback',
+      'max_tokens_weekly',
+      'max_tokens_plan',
+      'max_tokens_coach',
+    ] as const) {
+      if (num(form[key]) !== Number(settings[key])) changes[key] = num(form[key]);
+    }
     if (form.model.trim() !== settings.model) changes.model = form.model.trim();
-    if (num(form.max_tokens_feedback) !== settings.max_tokens_feedback)
-      changes.max_tokens_feedback = num(form.max_tokens_feedback);
-    if (num(form.max_tokens_weekly) !== settings.max_tokens_weekly)
-      changes.max_tokens_weekly = num(form.max_tokens_weekly);
     if (Object.keys(changes).length === 0) return setSaved(true);
     update.mutate(changes, { onSuccess: () => setSaved(true) });
   }
@@ -111,12 +137,33 @@ function SettingsForm({ settings }: { settings: AiSettings }) {
     <Card>
       <Text variant="heading">Settings</Text>
       <View style={{ gap: theme.spacing.md }}>
-        <Input
-          label="AI requests per user per day"
-          value={form.daily_limit}
-          onChangeText={set('daily_limit')}
-          keyboardType="number-pad"
-        />
+        <Text variant="label">Per user per day</Text>
+        <View style={[styles.row, { gap: theme.spacing.md }]}>
+          <View style={styles.flex}>
+            <Input
+              label="Workout feedback"
+              value={form.limit_workout_feedback}
+              onChangeText={set('limit_workout_feedback')}
+              keyboardType="number-pad"
+            />
+          </View>
+          <View style={styles.flex}>
+            <Input
+              label="Plans"
+              value={form.limit_plan}
+              onChangeText={set('limit_plan')}
+              keyboardType="number-pad"
+            />
+          </View>
+          <View style={styles.flex}>
+            <Input
+              label="Coach messages"
+              value={form.limit_coach}
+              onChangeText={set('limit_coach')}
+              keyboardType="number-pad"
+            />
+          </View>
+        </View>
         <Input
           label="Daily spending cap (USD, everyone together)"
           value={form.daily_budget_usd}
@@ -149,6 +196,24 @@ function SettingsForm({ settings }: { settings: AiSettings }) {
             />
           </View>
         </View>
+        <View style={[styles.row, { gap: theme.spacing.md }]}>
+          <View style={styles.flex}>
+            <Input
+              label="Max tokens: plan"
+              value={form.max_tokens_plan}
+              onChangeText={set('max_tokens_plan')}
+              keyboardType="number-pad"
+            />
+          </View>
+          <View style={styles.flex}>
+            <Input
+              label="Max tokens: coach reply"
+              value={form.max_tokens_coach}
+              onChangeText={set('max_tokens_coach')}
+              keyboardType="number-pad"
+            />
+          </View>
+        </View>
         <Text variant="caption" color="textMuted">
           Prices (USD per million tokens): input {settings.price_input}, output{' '}
           {settings.price_output}, cache write {settings.price_cache_write}, cache read{' '}
@@ -162,10 +227,11 @@ function SettingsForm({ settings }: { settings: AiSettings }) {
   );
 }
 
-function Overrides({ defaultLimit }: { defaultLimit: number }) {
+function Overrides({ settings }: { settings: AiSettings }) {
   const theme = useTheme();
   const overrides = useAiOverrides();
   const setOverride = useSetAiOverride();
+  const [feature, setFeature] = useState<AiFeature>('workout_feedback');
   const [query, setQuery] = useState('');
   const [limit, setLimit] = useState('10');
   const [results, setResults] = useState<Awaited<ReturnType<typeof findUsers>>>([]);
@@ -183,24 +249,32 @@ function Overrides({ defaultLimit }: { defaultLimit: number }) {
   return (
     <Card>
       <Text variant="heading">Per-user limits</Text>
+      <SegmentedControl
+        options={FEATURES}
+        value={feature}
+        onChange={setFeature}
+        accessibilityLabel="Feature"
+      />
       <Text variant="caption" color="textMuted">
-        Everyone else gets {defaultLimit} a day.
+        Everyone else gets {featureLimit(settings, feature)} a day.
       </Text>
-      {overrides.data?.length ? (
-        overrides.data.map((o) => (
-          <View key={o.user_id} style={[styles.row, { gap: theme.spacing.sm }]}>
-            <Text style={styles.flex}>
-              {o.display_name || o.username || o.user_id}: {o.daily_limit} a day
-            </Text>
-            <Button
-              title="Remove"
-              variant="ghost"
-              onPress={() => setOverride.mutate({ userId: o.user_id, limit: null })}
-            />
-          </View>
-        ))
+      {overrides.data?.filter((o) => o.function === feature).length ? (
+        overrides.data
+          .filter((o) => o.function === feature)
+          .map((o) => (
+            <View key={o.user_id} style={[styles.row, { gap: theme.spacing.sm }]}>
+              <Text style={styles.flex}>
+                {o.display_name || o.username || o.user_id}: {o.daily_limit} a day
+              </Text>
+              <Button
+                title="Remove"
+                variant="ghost"
+                onPress={() => setOverride.mutate({ userId: o.user_id, limit: null, feature })}
+              />
+            </View>
+          ))
       ) : (
-        <Text color="textMuted">No overrides.</Text>
+        <Text color="textMuted">No overrides for this feature.</Text>
       )}
       <View style={{ gap: theme.spacing.sm }}>
         <View style={[styles.row, { gap: theme.spacing.sm }]}>
@@ -236,7 +310,9 @@ function Overrides({ defaultLimit }: { defaultLimit: number }) {
             <Button
               title={`Set ${limit}`}
               variant="secondary"
-              onPress={() => setOverride.mutate({ userId: u.user_id, limit: Number(limit) })}
+              onPress={() =>
+                setOverride.mutate({ userId: u.user_id, limit: Number(limit), feature })
+              }
             />
           </View>
         ))}

@@ -17,6 +17,12 @@ export default function HomeScreen() {
       <NewReportBanner />
       <WeeklyOverview />
       <Button title="Start a workout" onPress={() => router.push('/workout')} fullWidth />
+      <Button
+        title="Ask the coach"
+        variant="secondary"
+        onPress={() => router.push('/coach')}
+        fullWidth
+      />
     </Screen>
   );
 }

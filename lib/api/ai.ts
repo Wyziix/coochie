@@ -1,6 +1,12 @@
 import { FunctionsHttpError } from '@supabase/supabase-js';
 
+import { AiError } from '@/lib/ai/errors';
+import { streamCoachReply, type CoachMessage } from '@/lib/ai/stream';
 import { getSupabase } from '@/lib/supabase';
+import type { Json } from '@/types/database';
+
+export { AiError };
+export type { CoachMessage };
 
 export type WorkoutFeedbackContent = {
   summary: string;
@@ -32,24 +38,19 @@ export type WeeklyReport = Feedback<WeeklyReportContent> & {
   seen_at: string | null;
 };
 
+export type AiFeature = 'workout_feedback' | 'plan' | 'coach';
+export type FeatureStatus = { limit: number; used: number; remaining: number };
+
 export type AiStatus = {
   enabled: boolean;
   paused_for_budget: boolean;
+  /** Workout feedback (the Stage 6 fields). */
   limit: number;
   used_today: number;
   remaining: number;
+  /** Each feature has its own daily limit. */
+  features?: Record<AiFeature, FeatureStatus>;
 };
-
-/** A refusal or failure from the AI functions, with the message to show. */
-export class AiError extends Error {
-  constructor(
-    public code: string,
-    message: string,
-  ) {
-    super(message);
-    this.name = 'AiError';
-  }
-}
 
 async function invoke<T>(fn: string, body: Record<string, unknown>): Promise<T> {
   const { data, error } = await getSupabase().functions.invoke(fn, { body });
@@ -131,7 +132,13 @@ export async function deletePushToken(token: string): Promise<void> {
 
 export type AiSettings = {
   enabled: boolean;
+  /** Same as limit_workout_feedback (Stage 6 name). */
   daily_limit: number;
+  limit_workout_feedback: number;
+  limit_plan: number;
+  limit_coach: number;
+  max_tokens_plan: number;
+  max_tokens_coach: number;
   daily_budget_usd: number;
   model: string;
   max_tokens_feedback: number;
@@ -149,6 +156,7 @@ export type AiOverride = {
   user_id: string;
   username: string | null;
   display_name: string | null;
+  function: AiFeature;
   daily_limit: number;
 };
 
@@ -182,15 +190,20 @@ export async function updateAiSettings(changes: Partial<AiSettings>): Promise<Ai
 }
 
 export async function fetchAiOverrides(): Promise<AiOverride[]> {
-  const { data, error } = await getSupabase().rpc('admin_ai_overrides');
+  const { data, error } = await getSupabase().rpc('admin_ai_feature_overrides');
   if (error) throw error;
   return data as unknown as AiOverride[];
 }
 
-export async function setAiOverride(userId: string, limit: number | null): Promise<void> {
+export async function setAiOverride(
+  userId: string,
+  limit: number | null,
+  feature: AiFeature = 'workout_feedback',
+): Promise<void> {
   const { error } = await getSupabase().rpc('admin_set_ai_override', {
     p_user: userId,
     p_limit: limit,
+    p_function: feature,
   });
   if (error) throw error;
 }
@@ -214,6 +227,106 @@ export async function fetchAiUsage(days = 30): Promise<AiUsageReport> {
   const { data, error } = await getSupabase().rpc('admin_ai_usage', { p_days: days });
   if (error) throw error;
   return data as unknown as AiUsageReport;
+}
+
+// --- Plans ---------------------------------------------------------------------
+
+export type PlanEquipment = 'full_gym' | 'home_dumbbells' | 'bodyweight';
+
+export type PlanRequest = {
+  goal: 'strength' | 'hypertrophy' | 'fat_loss' | 'general_fitness';
+  experience: 'beginner' | 'intermediate' | 'advanced';
+  days_per_week: number;
+  session_minutes: number;
+  equipment: PlanEquipment;
+};
+
+export type GeneratedPlan = {
+  name: string;
+  description: string;
+  weeks: number;
+  progression: string;
+  notes: string[];
+  days: {
+    name: string;
+    focus: string;
+    exercises: {
+      exercise_id: string;
+      name: string;
+      sets: number;
+      reps_min: number;
+      reps_max: number;
+      rest_seconds: number;
+    }[];
+  }[];
+};
+
+export type Program = {
+  id: string;
+  name: string;
+  description: string | null;
+  weeks: number | null;
+  notes: string[];
+  created_at: string;
+};
+
+/** Asks Claude for a plan (counts toward the daily plan limit). Nothing is saved. */
+export async function generatePlan(request: PlanRequest): Promise<{ plan: GeneratedPlan }> {
+  return invoke('generate-plan', request);
+}
+
+/** Saves the accepted plan as a program: one template per day. */
+export async function savePlan(
+  program: { name: string; description: string; weeks: number; notes: string[] },
+  days: { p_template: Json; p_exercises: Json }[],
+): Promise<string> {
+  const { data, error } = await getSupabase().rpc('save_ai_plan', {
+    p_program: program,
+    p_days: days as unknown as Json,
+  });
+  if (error) throw error;
+  return data as string;
+}
+
+export async function fetchPrograms(): Promise<Program[]> {
+  const { data, error } = await getSupabase()
+    .from('user_programs')
+    .select('id, name, description, weeks, notes, created_at')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data as unknown as Program[];
+}
+
+/** Deletes the program and all its templates (past workouts stay). */
+export async function deleteProgram(id: string): Promise<void> {
+  const { error } = await getSupabase().rpc('delete_program', { p_id: id });
+  if (error) throw error;
+}
+
+// --- Coach ---------------------------------------------------------------------
+
+export async function fetchCoachMessages(): Promise<CoachMessage[]> {
+  const { data, error } = await getSupabase()
+    .from('coach_messages')
+    .select('id, role, content, created_at')
+    .order('created_at', { ascending: false })
+    .limit(100);
+  if (error) throw error;
+  return (data as unknown as CoachMessage[]).reverse();
+}
+
+/** Streams the reply (text so far → onText); resolves with both saved messages. */
+export function sendCoachMessage(
+  message: string,
+  onText: (textSoFar: string) => void,
+): Promise<CoachMessage[]> {
+  return streamCoachReply(message, onText);
+}
+
+/** Deletes the whole chat (only the user's own messages, by RLS). */
+export async function clearCoachChat(userId: string): Promise<void> {
+  const { error } = await getSupabase().from('coach_messages').delete().eq('user_id', userId);
+  if (error) throw error;
 }
 
 /** Admin test: the admin's own report for the current week, right now. */

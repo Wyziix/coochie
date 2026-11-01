@@ -12,6 +12,7 @@ import {
   requestWorkoutFeedback,
   setAiOverride,
   updateAiSettings,
+  type AiFeature,
   type AiSettings,
 } from '@/lib/api/ai';
 import { useUserId } from '@/stores/authStore';
@@ -27,6 +28,18 @@ export function useAiStatus() {
     staleTime: 0,
     refetchOnMount: 'always',
   });
+}
+
+/** Calls left today for one feature. */
+export function useFeatureStatus(feature: AiFeature) {
+  const status = useAiStatus();
+  const s = status.data;
+  const f =
+    s?.features?.[feature] ??
+    (s && feature === 'workout_feedback'
+      ? { limit: s.limit, used: s.used_today, remaining: s.remaining }
+      : undefined);
+  return { ...status, feature: f, available: !!s?.enabled && !s.paused_for_budget };
 }
 
 /** Saved feedback for a workout, if any. Kept offline too, so it reopens for free. */
@@ -100,8 +113,15 @@ export function useAiOverrides() {
 export function useSetAiOverride() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ userId, limit }: { userId: string; limit: number | null }) =>
-      setAiOverride(userId, limit),
+    mutationFn: ({
+      userId,
+      limit,
+      feature = 'workout_feedback',
+    }: {
+      userId: string;
+      limit: number | null;
+      feature?: AiFeature;
+    }) => setAiOverride(userId, limit, feature),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'ai', 'overrides'] });
       queryClient.invalidateQueries({ queryKey: ['ai-status'] });

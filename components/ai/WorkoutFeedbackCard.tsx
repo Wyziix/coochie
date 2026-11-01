@@ -7,6 +7,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { AiError } from '@/lib/api/ai';
 import { describeError } from '@/lib/errors';
 import { useIsOnline } from '@/lib/offline/network';
+import { THINKING_LABEL } from '@/lib/ai/labels';
 
 import { FeedbackList, SeeProfessional } from './FeedbackSections';
 
@@ -72,14 +73,14 @@ export function WorkoutFeedbackCard({ workoutId, waitingToSync, workoutUpdatedAt
         <Button
           title={feedback ? 'Get new feedback' : 'Get AI feedback'}
           variant={feedback ? 'secondary' : 'primary'}
-          onPress={() => ask(!!feedback)}
+          onPress={() => void ask(!!feedback)}
           loading={request.isPending}
           disabled={status.data?.remaining === 0}
           fullWidth
         />
         <Text variant="caption" color="textMuted">
           {request.isPending
-            ? 'Asking Claude… usually under 10 seconds.'
+            ? `${THINKING_LABEL} Usually under 10 seconds.`
             : status.data?.remaining === 0
               ? `You’ve used your ${status.data.limit} AI requests for today. You get new ones tomorrow.`
               : left}

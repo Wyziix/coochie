@@ -1,8 +1,10 @@
 import { renderRouter, screen, waitFor } from 'expo-router/testing-library';
 import path from 'path';
 
+import { planToDraft } from '@/lib/plans/draft';
 import { draftFromTemplate } from '@/lib/templates/draft';
 import type { Template } from '@/lib/api/templates';
+import { usePlanDraftStore } from '@/stores/planDraftStore';
 import { useTemplateDraftStore } from '@/stores/templateDraftStore';
 import { useEditWorkoutStore, useWorkoutStore } from '@/stores/workoutStore';
 import {
@@ -13,6 +15,7 @@ import {
   onboardedProfile,
   resetBackend,
   sampleFeedback,
+  samplePlan,
   sampleReport,
   templatesState,
 } from '@/test-utils/backend';
@@ -71,6 +74,10 @@ const signedInRoutes = [
   '/reports',
   '/reports/rep-1',
   '/admin/ai',
+  '/coach',
+  '/plans/new',
+  '/plans/preview',
+  '/plans/edit-day',
 ];
 
 describe('every screen renders', () => {
@@ -86,6 +93,21 @@ describe('every screen renders', () => {
       draft: draftFromTemplate(templatesState.list[0] as Template),
     });
     useEditWorkoutStore.getState().load(useWorkoutStore.getState().workout!);
+    // A generated plan in the preview, with its first day open in the editor.
+    usePlanDraftStore.getState().load(
+      planToDraft(
+        samplePlan,
+        {
+          goal: 'strength',
+          experience: 'beginner',
+          days_per_week: 3,
+          session_minutes: 60,
+          equipment: 'full_gym',
+        },
+        new Map(),
+      ),
+    );
+    usePlanDraftStore.getState().startEditing(0);
   });
 
   it.each(signedInRoutes)('%s', async (url) => {
@@ -106,6 +128,10 @@ describe('every screen renders', () => {
       created_at: '',
       source_updated_at: '',
     });
+    aiState.coach = [
+      { id: 'c1', role: 'user', content: 'Rest days?', created_at: '1' },
+      { id: 'c2', role: 'assistant', content: 'Two a week.', created_at: '2' },
+    ];
     await renderRouter(appDir, { initialUrl: url });
     await waitFor(() => expect(screen).toHavePathname(url.split('?')[0]!));
     await screen.findAllByText(/./);

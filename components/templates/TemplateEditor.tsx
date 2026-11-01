@@ -20,13 +20,15 @@ type Props = {
   admin?: boolean;
   saving: boolean;
   onSave: (draft: TemplateDraft) => Promise<void>;
+  /** Label of the save button (default "Save template"). */
+  saveLabel?: string;
   /** Extra actions under the form (delete, hide...). */
   footer?: React.ReactNode;
 };
 
 const usesReps = (type: DraftExercise['type']) => type === 'weights' || type === 'bodyweight';
 
-export function TemplateEditor({ admin, saving, onSave, footer }: Props) {
+export function TemplateEditor({ admin, saving, onSave, saveLabel, footer }: Props) {
   const theme = useTheme();
   const draft = useTemplateDraftStore((s) => s.draft);
   const { update, updateExercise, removeExercise, moveExercise } = useTemplateDraftStore.getState();
@@ -203,7 +205,7 @@ export function TemplateEditor({ admin, saving, onSave, footer }: Props) {
         </View>
 
         {saveError ? <Text color="danger">{saveError}</Text> : null}
-        <Button title="Save template" onPress={save} loading={saving} fullWidth />
+        <Button title={saveLabel ?? 'Save template'} onPress={save} loading={saving} fullWidth />
         {footer}
       </ScrollView>
     </KeyboardAvoidingView>

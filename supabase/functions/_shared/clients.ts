@@ -4,7 +4,7 @@
 import Anthropic from 'npm:@anthropic-ai/sdk@0.134.0';
 import { createClient } from 'npm:@supabase/supabase-js@2.118.0';
 
-import type { Claude } from './ai.ts';
+import type { Claude, ClaudeStream } from './ai.ts';
 
 const url = Deno.env.get('SUPABASE_URL');
 
@@ -75,6 +75,46 @@ export const claude: Claude = async ({ model, maxTokens, system, user, schema })
     output_config: { effort: 'low', format: { type: 'json_schema', schema } },
     messages: [{ role: 'user', content: user }],
   });
+  const text = res.content
+    .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+    .map((b) => b.text)
+    .join('');
+  return {
+    text,
+    stopReason: res.stop_reason,
+    usage: {
+      input: res.usage.input_tokens,
+      output: res.usage.output_tokens,
+      cacheWrite: res.usage.cache_creation_input_tokens ?? 0,
+      cacheRead: res.usage.cache_read_input_tokens ?? 0,
+    },
+  };
+};
+
+/** Coach replies, streamed: thinking off and low effort, so text starts quickly. */
+export const claudeStream: ClaudeStream = async ({
+  model,
+  maxTokens,
+  system,
+  data,
+  messages,
+  onText,
+}) => {
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set');
+  const stream = anthropic.messages.stream({
+    model,
+    max_tokens: maxTokens,
+    // The fixed coach prompt is cached; the lifter's data comes after it.
+    system: [
+      { type: 'text', text: system, cache_control: { type: 'ephemeral' } },
+      { type: 'text', text: data },
+    ],
+    thinking: { type: 'disabled' },
+    output_config: { effort: 'low' },
+    messages,
+  });
+  stream.on('text', (text) => onText(text));
+  const res = await stream.finalMessage();
   const text = res.content
     .filter((b): b is Anthropic.TextBlock => b.type === 'text')
     .map((b) => b.text)

@@ -190,7 +190,7 @@ describe('admin AI', () => {
     await waitFor(() => expect(aiMock.updateAiSettings).toHaveBeenCalledWith({ enabled: false }));
     expect(await screen.findByText('AI is off for everyone')).toBeOnTheScreen();
 
-    await fireEvent.changeText(screen.getByLabelText('AI requests per user per day'), '5');
+    await fireEvent.changeText(screen.getByLabelText('Workout feedback'), '5');
     await fireEvent.changeText(
       screen.getByLabelText('Daily spending cap (USD, everyone together)'),
       '1',
@@ -198,7 +198,7 @@ describe('admin AI', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() =>
       expect(aiMock.updateAiSettings).toHaveBeenLastCalledWith({
-        daily_limit: 5,
+        limit_workout_feedback: 5,
         daily_budget_usd: 1,
       }),
     );
@@ -210,7 +210,9 @@ describe('admin AI', () => {
     await fireEvent.changeText(await screen.findByLabelText('Find a user (name or email)'), 'anna');
     await fireEvent.press(screen.getByRole('button', { name: 'Search' }));
     await fireEvent.press(await screen.findByRole('button', { name: 'Set 10' }));
-    await waitFor(() => expect(aiMock.setAiOverride).toHaveBeenCalledWith('user-2', 10));
+    await waitFor(() =>
+      expect(aiMock.setAiOverride).toHaveBeenCalledWith('user-2', 10, 'workout_feedback'),
+    );
     expect(await screen.findByText('Anna: 10 a day')).toBeOnTheScreen();
   });
 

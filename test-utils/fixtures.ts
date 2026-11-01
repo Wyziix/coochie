@@ -12,6 +12,7 @@ export const template: Template = {
   created_at: '',
   updated_at: '',
   client_updated_at: null,
+  program_id: null,
   exercises: [
     {
       id: 'te1',

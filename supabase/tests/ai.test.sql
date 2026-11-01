@@ -37,7 +37,7 @@ select pg_temp.expect_error($$select public.ai_workout_context(auth.uid(), gen_r
 select pg_temp.expect_error($$select * from public.ai_settings$$, 'or read settings directly');
 select pg_temp.expect_error($$insert into public.ai_feedback (user_id, kind, week_start, content, model) values (auth.uid(), 'weekly', '2026-10-26', '{}', 'x')$$,
   'or write feedback');
-select pg_temp.check((select public.ai_status() = '{"enabled": true, "paused_for_budget": false, "limit": 3, "used_today": 0, "remaining": 3}'::jsonb),
+select pg_temp.check((select public.ai_status() - 'features' = '{"enabled": true, "paused_for_budget": false, "limit": 3, "used_today": 0, "remaining": 3}'::jsonb),
   'status: 3 calls a day by default');
 
 -- Daily limit: 3 calls, the 4th is refused (and logged).
@@ -83,11 +83,11 @@ select pg_temp.check((select cost_usd = 0.000246 from public.ai_usage where user
 -- Admin: settings, overrides, logged; others can't.
 select pg_temp.login('a1a10000-0000-0000-0000-000000000001');
 select pg_temp.expect_error($$select public.admin_update_ai_settings('{"daily_limit": 50}')$$, 'non-admins cannot change AI settings');
-select pg_temp.expect_error($$select public.admin_set_ai_override(auth.uid(), 99)$$, 'or give themselves more calls');
+select pg_temp.expect_error($$select public.admin_set_ai_override(auth.uid(), 99, 'workout_feedback')$$, 'or give themselves more calls');
 select pg_temp.expect_error($$select public.admin_ai_usage(30)$$, 'or see the dashboard');
 select pg_temp.login('a1a10000-0000-0000-0000-000000000003');
-select public.admin_set_ai_override('a1a10000-0000-0000-0000-000000000001', 5);
-select pg_temp.check((select count(*) = 1 from public.admin_ai_overrides() where username = 'ai_a' and daily_limit = 5), 'admin sets a per-user override');
+select public.admin_set_ai_override('a1a10000-0000-0000-0000-000000000001', 5, 'workout_feedback');
+select pg_temp.check((select count(*) = 1 from public.admin_ai_feature_overrides() where username = 'ai_a' and daily_limit = 5), 'admin sets a per-user override');
 select pg_temp.check((select count(*) = 1 from public.admin_find_users('ai_') where email = 'ai-a@test.dev'), 'admin finds users by name');
 select pg_temp.expect_error($$select public.admin_update_ai_settings('{"model": "gpt-4"}')$$, 'only Claude model ids');
 select pg_temp.expect_error($$select public.admin_update_ai_settings('{"functions_url": "https://evil"}')$$, 'unknown settings rejected');
@@ -100,7 +100,7 @@ select pg_temp.check((select (details -> 'before' ->> 'daily_budget_usd')::numer
 select pg_temp.as_service();
 select pg_temp.check((select (pg_temp.reserve('a1a10000-0000-0000-0000-000000000001', 'w5') ->> 'ok')::boolean), 'override: 5 calls instead of 3');
 select pg_temp.login('a1a10000-0000-0000-0000-000000000003');
-select public.admin_set_ai_override('a1a10000-0000-0000-0000-000000000001', 0);
+select public.admin_set_ai_override('a1a10000-0000-0000-0000-000000000001', 0, 'workout_feedback');
 select pg_temp.as_service();
 select pg_temp.check((select pg_temp.reserve('a1a10000-0000-0000-0000-000000000001', 'w6') ->> 'reason' = 'limit'), 'override 0 blocks AI for that user');
 
@@ -117,7 +117,7 @@ select pg_temp.check((select (public.ai_status() ->> 'enabled')::boolean = false
 -- Spending cap: once today's cost reaches it, AI pauses for everyone.
 select pg_temp.login('a1a10000-0000-0000-0000-000000000003');
 select public.admin_update_ai_settings('{"enabled": true, "daily_budget_usd": 0.01}');
-select public.admin_set_ai_override('a1a10000-0000-0000-0000-000000000003', 20); -- so the cap, not the limit, is what stops it
+select public.admin_set_ai_override('a1a10000-0000-0000-0000-000000000003', 20, 'workout_feedback'); -- so the cap, not the limit, is what stops it
 select pg_temp.as_service();
 select pg_temp.check((select (pg_temp.reserve('a1a10000-0000-0000-0000-000000000003', 'c1') ->> 'ok')::boolean), 'under the cap: ok');
 select public.ai_finish(id, 'ok', 40000, 12000) from public.ai_usage where ref_id = 'c1' and status = 'pending';

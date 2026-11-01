@@ -138,6 +138,10 @@ function RootNavigator() {
             name="reports/[id]"
             options={{ headerShown: true, title: 'Weekly report' }}
           />
+          <Stack.Screen name="coach" options={{ headerShown: true, title: 'Coach' }} />
+          <Stack.Screen name="plans/new" options={{ headerShown: true, title: 'AI plan' }} />
+          <Stack.Screen name="plans/preview" options={{ headerShown: true, title: 'Your plan' }} />
+          <Stack.Screen name="plans/edit-day" options={{ headerShown: true, title: 'Edit day' }} />
         </Stack.Protected>
       </Stack>
     </>

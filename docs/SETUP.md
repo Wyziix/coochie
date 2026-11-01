@@ -165,6 +165,19 @@ If the second query fails or returns nothing, the extensions weren't on: turn th
 
 The model is one value: `ai_settings.model`, changeable in Admin → AI (or SQL). If you switch models, also update the four prices there, so the logged cost stays right.
 
+### Stage 7 migration (AI plans and coach)
+
+1. Run `20261108000000_ai_plans_coach.sql` (safe to run twice). It adds separate daily limits (workout feedback 3, plans 2, coach messages 15) and output caps (plan 1500, coach 400) to `ai_settings`, per-feature overrides, `user_programs` + `templates.program_id`, `coach_messages`, `save_ai_plan()`, `delete_program()`, the plan and coach summaries, and five bodyweight exercises.
+
+```sql
+select limit_workout_feedback, limit_plan, limit_coach, max_tokens_plan, max_tokens_coach from public.ai_settings;  -- 3, 2, 15, 1500, 400
+select count(*) from public.exercises where slug in ('bodyweight_squat', 'pike_push_up');  -- 2
+select tablename, rowsecurity from pg_tables where tablename in ('user_programs', 'coach_messages');  -- both true
+```
+
+2. Deploy the functions (adds `generate-plan` and `coach`): `npm run deploy:functions`.
+3. Redeploy the web app: `npm run deploy:web`.
+
 ## 6. Enable the custom access token hook
 
 This puts `user_role` (`user` / `admin`) into every login token.
@@ -293,7 +306,7 @@ Apply new migrations first (and `npm run deploy:functions` if `supabase/function
 
 ## 11. AI feedback and weekly reports
 
-- **Limits:** 3 requests per user per day (Admin → AI → "AI requests per user per day", per-user overrides below it). Checked in the database before Claude is called, under a lock, so two quick taps can't both get through. Failed calls don't use up a request. Days count in Europe/Madrid.
+- **Limits:** separate daily limits per user: workout feedback 3, plans 2, coach messages 15 (Admin → AI → "Per user per day"; per-user overrides per feature below it). Regenerating a plan counts as a plan. Checked in the database before Claude is called, under a lock, so two quick taps can't both get through. Failed calls don't use up a request. Days count in Europe/Madrid.
 - **Spending cap:** Admin → AI → "Daily spending cap" (default $0.50/day, everyone together). When today's logged cost reaches it, AI pauses for everyone until the next day. A typical call costs about $0.0002-0.0003.
 - **Kill switch:** Admin → AI → "Turn AI off" stops every AI call immediately.
 - **Usage:** Admin → AI shows the last 30 days (calls, cost, errors, top users). Every call is in `ai_usage` with tokens and cost:
@@ -307,3 +320,14 @@ Apply new migrations first (and `npm run deploy:functions` if `supabase/function
   2. Firebase → Project settings → Service accounts → generate a key; then `npx eas-cli@latest credentials -p android` → Google Service Account → FCM V1 → upload it.
   3. Make sure the project is linked to EAS (`npx eas-cli@latest init` adds `extra.eas.projectId`), then build a new APK. Open Weekly reports and tap "Notify me when a report is ready".
      Without this, Android shows the same in-app card as the iPhone.
+
+## 12. AI plans and coach
+
+- **Plans:** Workout tab → My programs → "+ AI plan". Claude only gets library exercises for the chosen equipment; the server checks the answer (and asks once more if an exercise isn't in the list) before the app shows a preview. Saved plans are one template per day, grouped as a program; "Delete program" removes all of them.
+- **Coach:** Home or Progress → "Ask the coach". Replies stream; the chat is saved in `coach_messages` and readable offline. "Clear chat" deletes it.
+- **Output caps:** Admin → AI → "Max tokens: plan" (1500) and "Max tokens: coach reply" (400).
+- **Check real calls:**
+  ```sql
+  select created_at, function, status, input_tokens, cache_read_tokens, output_tokens, cost_usd, attempts, error
+  from public.ai_usage where function in ('plan', 'coach') order by created_at desc limit 20;
+  ```

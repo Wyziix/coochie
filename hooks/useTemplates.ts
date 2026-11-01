@@ -8,6 +8,7 @@ import {
   fetchTemplates,
   type TemplatePayload,
 } from '@/lib/api/templates';
+import type { Program } from '@/lib/api/ai';
 import type { WorkoutDetail } from '@/lib/api/workouts';
 import { newId } from '@/lib/id';
 import { enqueue, useOutboxStore } from '@/lib/offline/outbox';
@@ -17,6 +18,7 @@ import { templatePayloadFromWorkout } from '@/lib/templates/fromWorkout';
 import { useUserId } from '@/stores/authStore';
 
 import { useExercises } from './useExercises';
+import { usePrograms } from './usePlans';
 
 export const templatesKey = ['templates'] as const;
 
@@ -42,8 +44,27 @@ export function useTemplateGroups() {
   const query = useTemplates();
   const all = query.data ?? [];
   const mine = all
-    .filter((t) => t.owner_id === userId)
+    .filter((t) => t.owner_id === userId && !t.program_id)
     .sort((a, b) => a.name.localeCompare(b.name));
+  // Saved AI plans: the user's templates grouped by program, days in order.
+  const programList = usePrograms().data;
+  const myPrograms: { id: string; program: Program | undefined; templates: typeof all }[] = [];
+  for (const t of all.filter((t) => t.owner_id === userId && t.program_id)) {
+    let group = myPrograms.find((p) => p.id === t.program_id);
+    if (!group) {
+      group = {
+        id: t.program_id!,
+        program: programList?.find((p) => p.id === t.program_id),
+        templates: [],
+      };
+      myPrograms.push(group);
+    }
+    group.templates.push(t);
+  }
+  for (const g of myPrograms) g.templates.sort((a, b) => a.position - b.position);
+  myPrograms.sort((a, b) =>
+    (b.program?.created_at ?? '').localeCompare(a.program?.created_at ?? ''),
+  );
   const programs: { program: string; templates: typeof all }[] = [];
   for (const t of all.filter((t) => t.owner_id === null)) {
     const name = t.program ?? 'Other';
@@ -51,7 +72,7 @@ export function useTemplateGroups() {
     if (!group) programs.push((group = { program: name, templates: [] }));
     group.templates.push(t);
   }
-  return { ...query, mine, programs };
+  return { ...query, mine, programs, myPrograms };
 }
 
 export function useTemplate(id: string | undefined) {

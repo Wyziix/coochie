@@ -109,6 +109,18 @@ export default function ProgressScreen() {
         </View>
       </Card>
 
+      <Card onPress={() => router.push('/coach')} accessibilityLabel="Ask the coach">
+        <View style={styles.row}>
+          <Ionicons name="chatbubbles-outline" size={20} color={theme.colors.primary} />
+          <Text variant="label" style={[styles.flex, { marginLeft: theme.spacing.sm }]}>
+            Ask the coach
+          </Text>
+          <Text variant="caption" color="textMuted">
+            About your training
+          </Text>
+        </View>
+      </Card>
+
       <View style={{ gap: theme.spacing.sm }}>
         <Text variant="heading">Recent records</Text>
         {records.error ? (

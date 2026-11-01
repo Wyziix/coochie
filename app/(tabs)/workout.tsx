@@ -7,10 +7,14 @@ import { Button, Card, EmptyState, ErrorState, Header, Screen, Text } from '@/co
 import { useRestSettings } from '@/hooks/useExercises';
 import { useNow } from '@/hooks/useNow';
 import { useProfile } from '@/hooks/useProfile';
+import { useDeleteProgram } from '@/hooks/usePlans';
 import { useTemplateGroups } from '@/hooks/useTemplates';
 import { useTheme } from '@/hooks/useTheme';
 import { useRecentWorkouts } from '@/hooks/useWorkouts';
 import type { Template } from '@/lib/api/templates';
+import { confirm } from '@/lib/confirm';
+import { describeError } from '@/lib/errors';
+import { useIsOnline } from '@/lib/offline/network';
 import { emptyDraft } from '@/lib/templates/draft';
 import { formatDuration } from '@/lib/workout/format';
 import { startEmptyWorkout, startTemplateWorkout } from '@/lib/workout/start';
@@ -24,12 +28,24 @@ export default function WorkoutScreen() {
   const now = useNow(1000, workout !== null);
   const recent = useRecentWorkouts(3);
   const templates = useTemplateGroups();
+  const deleteProgram = useDeleteProgram();
+  const online = useIsOnline();
   const { data: restSettings } = useRestSettings();
   const units = profile?.units ?? 'kg';
 
   const start = (t: Template) => startTemplateWorkout(t, units, restSettings);
   const open = (t: Template) => router.push({ pathname: '/templates/[id]', params: { id: t.id } });
   const section = { gap: theme.spacing.sm } as const;
+
+  async function removeProgram(id: string, name: string, days: number) {
+    const ok = await confirm({
+      title: `Delete “${name}”?`,
+      message: `Its ${days} template${days === 1 ? '' : 's'} are deleted too. Past workouts stay in your history.`,
+      confirmLabel: 'Delete program',
+      destructive: true,
+    });
+    if (ok) deleteProgram.mutate(id);
+  }
 
   return (
     <Screen scroll header={<Header title="Workout" />}>
@@ -79,6 +95,51 @@ export default function WorkoutScreen() {
             Build your own, copy a ready-made one, or save a finished workout as a template.
           </Text>
         )}
+      </View>
+
+      <View style={section}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Text variant="heading" style={{ flex: 1 }}>
+            My programs
+          </Text>
+          <Button title="+ AI plan" variant="ghost" onPress={() => router.push('/plans/new')} />
+        </View>
+        {templates.myPrograms.length ? (
+          templates.myPrograms.map(({ id, program, templates: list }) => (
+            <View key={id} style={section}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <View style={{ flex: 1 }}>
+                  <Text variant="label">{program?.name ?? 'Program'}</Text>
+                  <Text variant="caption" color="textMuted">
+                    {list.length} day{list.length === 1 ? '' : 's'}
+                    {program?.weeks ? ` · ${program.weeks} weeks` : ''}
+                  </Text>
+                </View>
+                <Button
+                  title="Delete program"
+                  variant="ghost"
+                  disabled={!online || deleteProgram.isPending}
+                  onPress={() => removeProgram(id, program?.name ?? 'Program', list.length)}
+                />
+              </View>
+              {list.map((t) => (
+                <TemplateCard
+                  key={t.id}
+                  template={t}
+                  onOpen={() => open(t)}
+                  onStart={() => start(t)}
+                />
+              ))}
+            </View>
+          ))
+        ) : templates.isPending ? null : (
+          <Text color="textMuted">
+            Let Claude build a multi-week plan from your goal, schedule and equipment.
+          </Text>
+        )}
+        {deleteProgram.error ? (
+          <Text color="danger">Couldn’t delete: {describeError(deleteProgram.error).message}</Text>
+        ) : null}
       </View>
 
       {templates.programs.map(({ program, templates: list }) => (

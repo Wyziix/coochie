@@ -1,5 +1,5 @@
-// Shared by workout-feedback and weekly-report. No Deno/npm imports, so the
-// handlers can be tested with a fake Claude (no API calls, no cost).
+// Shared by the AI functions. No Deno/npm imports, so the handlers can be
+// tested with a fake Claude (no API calls, no cost).
 
 export type Kind = 'workout_feedback' | 'weekly_report';
 
@@ -21,6 +21,22 @@ export type ClaudeResponse = {
 
 /** Sends one Messages API request (index.ts uses the Anthropic SDK). */
 export type Claude = (req: ClaudeRequest) => Promise<ClaudeResponse>;
+
+export type ChatMessage = { role: 'user' | 'assistant'; content: string };
+
+export type StreamRequest = {
+  model: string;
+  maxTokens: number;
+  /** Fixed and cached. */
+  system: string;
+  /** Changes every request (the training summary); sent after the cached part. */
+  data: string;
+  messages: ChatMessage[];
+  onText(text: string): void;
+};
+
+/** A streamed chat reply: text arrives through onText, the full reply at the end. */
+export type ClaudeStream = (req: StreamRequest) => Promise<ClaudeResponse>;
 
 /**
  * Fixed system prompt for both tasks. It never changes between requests (no
@@ -174,46 +190,48 @@ export function validate(
   return { ok: true, value: v };
 }
 
-export type GenerateResult =
-  | { ok: true; content: Record<string, unknown>; usage: Usage; attempts: number }
+export type GenerateResult<T = Record<string, unknown>> =
+  | { ok: true; content: T; usage: Usage; attempts: number }
   | { ok: false; reason: string; usage: Usage; attempts: number };
 
+export type Check<T> = (text: string) => { ok: true; value: T } | { ok: false; reason: string };
+
 /**
- * Asks Claude, checks the answer, and asks once more if it isn't valid
- * (telling it what was wrong). Errors from the API itself are thrown.
+ * Asks Claude for JSON, checks the answer, and asks once more if it isn't
+ * valid (telling it what was wrong). Errors from the API itself are thrown.
  */
-export async function generate(
+export async function askJson<T>(
   claude: Claude,
-  kind: Kind,
-  model: string,
-  maxTokens: number,
-  context: unknown,
-): Promise<GenerateResult> {
+  opts: {
+    model: string;
+    maxTokens: number;
+    system: string;
+    schema: Record<string, unknown>;
+    user: string;
+    check: Check<T>;
+  },
+): Promise<GenerateResult<T>> {
   const usage: Usage = { input: 0, output: 0, cacheWrite: 0, cacheRead: 0 };
-  const base = `Task: ${kind}\nData (JSON):\n${JSON.stringify(context)}`;
   let reason = '';
   for (let attempt = 1; attempt <= 2; attempt++) {
     const user =
       attempt === 1
-        ? base
-        : `${base}\n\nYour previous answer couldn't be used (${reason}). Answer again with the JSON object only, keeping every text short.`;
+        ? opts.user
+        : `${opts.user}\n\nYour previous answer couldn't be used (${reason}). Answer again with the JSON object only, keeping every text short.`;
     const res = await claude({
-      model,
-      maxTokens,
-      system: SYSTEM_PROMPT,
+      model: opts.model,
+      maxTokens: opts.maxTokens,
+      system: opts.system,
       user,
-      schema: SCHEMAS[kind],
+      schema: opts.schema,
     });
-    usage.input += res.usage.input;
-    usage.output += res.usage.output;
-    usage.cacheWrite += res.usage.cacheWrite;
-    usage.cacheRead += res.usage.cacheRead;
+    addUsage(usage, res.usage);
     if (res.stopReason === 'refusal') {
       reason = 'refused';
     } else if (res.stopReason === 'max_tokens') {
       reason = 'answer was cut off';
     } else {
-      const checked = validate(kind, res.text);
+      const checked = opts.check(res.text);
       if (checked.ok) return { ok: true, content: checked.value, usage, attempts: attempt };
       reason = checked.reason;
     }
@@ -221,17 +239,74 @@ export async function generate(
   return { ok: false, reason, usage, attempts: 2 };
 }
 
+/** Workout feedback and weekly reports. */
+export function generate(
+  claude: Claude,
+  kind: Kind,
+  model: string,
+  maxTokens: number,
+  context: unknown,
+): Promise<GenerateResult> {
+  return askJson(claude, {
+    model,
+    maxTokens,
+    system: SYSTEM_PROMPT,
+    schema: SCHEMAS[kind],
+    user: `Task: ${kind}\nData (JSON):\n${JSON.stringify(context)}`,
+    check: (text) => validate(kind, text),
+  });
+}
+
+export function addUsage(total: Usage, more: Usage) {
+  total.input += more.input;
+  total.output += more.output;
+  total.cacheWrite += more.cacheWrite;
+  total.cacheRead += more.cacheRead;
+}
+
+/** Logs the outcome of a reserved call (tokens, cost, error) with ai_finish. */
+export function finishCall(
+  rpc: <T>(fn: string, args: Record<string, unknown>) => Promise<T>,
+  id: string,
+  status: 'ok' | 'error',
+  usage?: Usage,
+  attempts = 1,
+  error?: string,
+) {
+  return rpc('ai_finish', {
+    p_id: id,
+    p_status: status,
+    p_input: usage?.input ?? 0,
+    p_output: usage?.output ?? 0,
+    p_cache_write: usage?.cacheWrite ?? 0,
+    p_cache_read: usage?.cacheRead ?? 0,
+    p_attempts: attempts,
+    p_error: error ?? null,
+  });
+}
+
+export type Reservation =
+  | { ok: true; id: string; model: string; max_tokens: number }
+  | { ok: false; reason: string; limit?: number };
+
+const LIMIT_WHAT: Record<string, string> = {
+  workout_feedback: 'AI requests',
+  plan: 'plan generations',
+  coach: 'coach messages',
+};
+
 /** Message for each reason ai_reserve can refuse, and its HTTP status. */
 export function refusal(
   reason: string,
   limit?: number,
+  feature = 'workout_feedback',
 ): { status: number; error: string; message: string } {
   switch (reason) {
     case 'limit':
       return {
         status: 429,
         error: 'limit',
-        message: `You've used your ${limit ?? 3} AI requests for today. You get new ones tomorrow.`,
+        message: `You've used your ${limit ?? 3} ${LIMIT_WHAT[feature] ?? 'AI requests'} for today. You get new ones tomorrow.`,
       };
     case 'disabled':
       return { status: 503, error: 'disabled', message: 'AI features are switched off right now.' };

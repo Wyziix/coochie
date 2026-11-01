@@ -24,7 +24,7 @@ App name: **LightweightBaby** · bundle ID / package `com.lightweightbaby.app` �
 | 4     | Progress tracking                    | Done   |
 | 5     | Offline mode and sync                | Done   |
 | 6     | Claude feedback                      | Done   |
-| 7     | AI plan generator and coach chat     | –      |
+| 7     | AI plan generator and coach chat     | Done   |
 | 8     | Points and ranking                   | –      |
 | 9     | Social                               | –      |
 | 10    | Nutrition                            | –      |
@@ -338,6 +338,36 @@ Checks: typecheck, lint, prettier, 242 Jest tests (feedback only on tap, saved f
 - pg_cron and pg_net must be turned on before running the migration (it warns if not)
 - Feedback for a workout logged offline appears only after it synced
 - Exact token counts per call are in `ai_usage`; check the first real calls (see the live check in the Stage 6 report)
+
+## Stage 7 – AI plan generator and coach chat
+
+Built:
+
+- **Same model and controls as Stage 6:** `claude-haiku-5-5` from `ai_settings`, same kill switch, spending cap, `ai_usage` logging (functions `plan` and `coach`) and prompt caching. Each feature has its own fixed system prompt (~3,500 characters, about 850-900 tokens, above the 512-token caching minimum, no dates or user data)
+- **Separate daily limits per feature**, editable in Admin → AI: workout feedback 3, plans 2, coach messages 15 (`limit_workout_feedback`, `limit_plan`, `limit_coach`). Per-user overrides are per feature too. Output caps: 1,500 tokens for a plan, 400 per coach reply (`max_tokens_plan`, `max_tokens_coach`), also editable. `ai_status()` returns all three counts
+- **Plan generator** (`generate-plan` Edge Function, `/plans/new` → `/plans/preview`): goal, experience, days per week (2-6), session length (30-90 min), equipment (full gym / home dumbbells / bodyweight only), plus an 8-week history summary built in SQL (`ai_plan_context`: sessions, main lifts with best set and e1RM, sets per muscle). Claude only sees library exercises for that equipment as a compact list of short ids (`e12 Bench Press (Barbell) [chest]`); the real ids stay on the server. The answer is structured JSON, checked on the server (exact day count, 3-8 exercises a day, known ids, no duplicates, sets 1-6, reps 1-30, rest 30-300 s, text lengths); an unknown exercise or any other problem is sent back to Claude once with the reason, then a clean error. Nothing is saved until the user accepts
+- **Preview:** plan name, weeks, how to progress, tips, each day with sets × reps and rest. "Save plan" saves it; "Regenerate" asks first and uses one of the day's plans; "Edit" opens a day in the normal template editor ("Done" goes back to the preview)
+- **Programs:** a saved plan is a row in `user_programs` plus one template per day (`templates.program_id`, `save_ai_plan()`). Workout tab → "My programs" lists them by program; "Delete program" deletes the program and all its templates at once (`delete_program()`, with sync tombstones so an offline edit can't bring a day back). Past workouts stay
+- **Coach chat** (`coach` Edge Function, `/coach`, opened from Home and the Progress tab): messages in `coach_messages` (owner can read and clear; only the function writes, so nobody can fake coach replies). Each question sends the compact training summary (`ai_coach_context`: profile, last 4 weeks, last 5 workouts in one line each, recent PRs, this week's sets per muscle) as a second, uncached system block, plus only the last 10 messages. Replies stream (Server-Sent Events read with XMLHttpRequest progress events, on web incl. iPhone Safari and on Android); the question and reply are saved together when the reply is complete, even if the app went away. "Clear chat" (asks first). Offline: old messages stay readable, the input is replaced by "Needs connection"
+- **Coach prompt:** strength coach that answers from the lifter's real numbers, short plain answers, general nutrition only, never diagnoses, tells the user to stop and see a doctor or physiotherapist for pain, injury or medical issues (urgent help for chest pain or fainting), and refuses off-topic requests in one sentence
+- **"Gleb is thinking…"** is the loading text for every AI wait (workout feedback, plan generation, coach typing indicator), one constant in `lib/ai/labels.ts`
+- Five bodyweight exercises added to the library (squat, reverse lunge, Bulgarian split squat, pike push-up, calf raise) so "bodyweight only" plans can train legs and shoulders
+
+Checks: typecheck, lint, prettier, 267 Jest tests (plan form → preview → save as program, edit a day before saving, regenerate counts and the 3rd plan is blocked, server refusal shown, offline "Needs connection", delete a whole program, coach reply streams with "Gleb is thinking" until the first words, 16th message refused and the question kept, offline chat readable, clear chat, entry points, admin per-feature limits and overrides, SSE parser and streaming client incl. a buffered reply, refusals and dropped connections), 46 Edge Function tests with Claude faked (plan with real ids and names, **unknown exercise rejected and retried once**, invalid twice not counted, every plan check, cut-off answers, 3rd plan blocked, bad form, no exercises for the equipment, timeout; coach stream in pieces then saved, last 10 messages as a valid conversation, non-streaming fallback, 16th message blocked before Claude, API error mid-stream, cut-off and refused replies, saved even after the app disconnects, prompt rules), DB checks (separate limits, per-feature overrides, kill switch and cap for plans and coach, programs saved and deleted with tombstones, only the owner sees programs and chat, the app can't write coach messages, equipment filtering, summaries compact with no real ids). Browser test of the production build at 390 px and 1440 px: plan form → "Gleb is thinking…" → preview → edit day → regenerate → blocked → save → My programs → delete; coach reply streamed by a real local SSE server (text visible while the reply was still arriving), reload keeps the chat, offline "Needs connection" with old messages, clear chat; admin limits. No real Claude calls in any automated test.
+
+### Decisions
+
+- **Streaming on iPhone:** XMLHttpRequest progress events deliver Server-Sent Events as they arrive in Safari, including the home-screen app, and on Android. If something on the way buffers the response, the typing indicator stays until the whole reply arrives at once, so the fallback is built in (the function also answers plain JSON with `stream: false`)
+- The question is saved together with the reply, so a failed reply leaves nothing half-saved and the typed question stays in the input to try again
+- Plans are previewed from memory, not saved, until accepted; leaving the preview throws the plan away (the call still counted)
+- Plan days are saved as normal templates, so starting, editing and offline use work like any other template
+- The Stage 6 `daily_limit` column stays in sync with the workout feedback limit (old app versions keep working)
+
+### Known issues / to check
+
+- Check the first real plan and coach calls in `ai_usage` (tokens and cost); a plan is about 3,000-4,000 input tokens and up to 1,500 output, about $0.001
+- A 6-day plan with many exercises can hit the 1,500-token cap; it's then retried once with "keep every text short", and the cap can be raised in Admin → AI
+- Plan generation needs a connection; saved programs work offline
 
 ## Planned for Stage 13 (polish)
 
