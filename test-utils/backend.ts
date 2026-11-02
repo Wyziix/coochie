@@ -85,6 +85,7 @@ export function resetBackend({
   useAuthStore.setState({ status: 'loading', session: null });
   resetAi();
   resetPoints();
+  resetSocial();
   // Fresh device: no offline data, nothing queued, online.
   jest.requireMock('@/lib/offline/storage').__memory.clear();
   useOutboxStore.setState({ userId: null, items: [], loaded: false, sending: [] });
@@ -1226,4 +1227,380 @@ export const pointsMock = {
       details: {},
     },
   ]),
+};
+
+// --- Stage 9: social (server logic faked; state in socialState) ---------------
+const card = (user_id: string, username: string, level = 3) => ({
+  user_id,
+  username,
+  avatar_url: null,
+  level,
+});
+
+export const socialState = {
+  people: [] as (ReturnType<typeof card> & { relation: string })[],
+  friends: { friends: [], incoming: [], outgoing: [], blocked: [] } as {
+    friends: ReturnType<typeof card>[];
+    incoming: ReturnType<typeof card>[];
+    outgoing: ReturnType<typeof card>[];
+    blocked: { user_id: string; username: string }[];
+  },
+  feed: [] as {
+    id: string;
+    kind: string;
+    occurred_at: string;
+    is_mine: boolean;
+    user: ReturnType<typeof card>;
+    payload: Record<string, unknown>;
+    reactions: Record<string, number>;
+    my_reaction: string | null;
+  }[],
+  streak: { current: 3, longest: 5, this_week_done: false, this_week_sessions: 1, goal: 3 },
+  badges: [] as Record<string, unknown>[],
+  challenges: [] as Record<string, unknown>[],
+  notifications: [] as {
+    id: number;
+    type: string;
+    title: string;
+    body: string;
+    data: { url?: string };
+    read_at: string | null;
+    created_at: string;
+  }[],
+  privacy: { activity_visibility: 'friends', pr_show_weight: true },
+  notificationSettings: {
+    friend_request: true,
+    friend_accepted: true,
+    pr_beaten: true,
+    challenge_invite: true,
+    challenge_ending: true,
+    streak_risk: true,
+  } as Record<string, boolean>,
+  reports: [] as Record<string, unknown>[],
+  adminBadges: [] as Record<string, unknown>[],
+  adminChallenges: [] as Record<string, unknown>[],
+};
+
+export const sampleChallenge = (overrides: Record<string, unknown> = {}) => ({
+  id: 'ch-1',
+  kind: 'friend',
+  title: 'Bench-off',
+  description: null,
+  metric: 'workouts',
+  exercise: null,
+  exercise_id: null,
+  goal: 4,
+  start_date: '2026-11-02',
+  end_date: '2026-11-08',
+  ends_at: new Date(Date.now() + 3 * 86_400_000).toISOString(),
+  reward_points: 0,
+  reward_badge: null,
+  state: 'active',
+  created_by: 'gleb',
+  is_mine: true,
+  my_status: 'joined',
+  my_score: 2,
+  participants: 2,
+  ranking: [
+    {
+      ...card('user-2', 'anna', 4),
+      rank: 1,
+      score: 3,
+      is_me: false,
+      winner: false,
+      status: 'joined',
+    },
+    { ...card(USER_ID, 'gleb'), rank: 2, score: 2, is_me: true, winner: false, status: 'joined' },
+  ],
+  ...overrides,
+});
+
+export function resetSocial() {
+  socialState.people = [
+    { ...card('user-2', 'anna', 4), relation: 'none' },
+    { ...card('user-3', 'annabel', 2), relation: 'none' },
+  ];
+  socialState.friends = {
+    friends: [],
+    incoming: [card('user-4', 'marc')],
+    outgoing: [],
+    blocked: [],
+  };
+  socialState.feed = [
+    {
+      id: 'a-1',
+      kind: 'pr',
+      occurred_at: new Date(Date.now() - 3_600_000).toISOString(),
+      is_mine: false,
+      user: card('user-2', 'anna', 4),
+      payload: { exercise: 'Bench Press (Barbell)', weight_kg: 57.5 },
+      reactions: { '💪': 1 },
+      my_reaction: null,
+    },
+    {
+      id: 'a-2',
+      kind: 'workout',
+      occurred_at: new Date(Date.now() - 7_200_000).toISOString(),
+      is_mine: false,
+      user: card('user-2', 'anna', 4),
+      payload: { name: 'Push', minutes: 52, sets: 14, exercises: 4 },
+      reactions: {},
+      my_reaction: null,
+    },
+  ];
+  socialState.streak = {
+    current: 3,
+    longest: 5,
+    this_week_done: false,
+    this_week_sessions: 1,
+    goal: 3,
+  };
+  socialState.badges = [
+    {
+      id: 'b-1',
+      slug: 'first_workout',
+      name: 'First rep',
+      description: 'Finish your first workout.',
+      icon: 'flag-outline',
+      category: 'milestone',
+      earned_at: '2026-10-05T18:00:00Z',
+      progress: null,
+    },
+    {
+      id: 'b-2',
+      slug: 'workouts_10',
+      name: 'Regular',
+      description: 'Finish 10 workouts.',
+      icon: 'barbell-outline',
+      category: 'milestone',
+      earned_at: null,
+      progress: { current: 7, target: 10, earned_at: null },
+    },
+    {
+      id: 'b-3',
+      slug: 'bench_bw',
+      name: 'Bench your bodyweight',
+      description: 'Bench press your own bodyweight.',
+      icon: 'fitness-outline',
+      category: 'strength',
+      earned_at: null,
+      progress: { current: 70, target: 80, earned_at: null },
+    },
+  ];
+  socialState.challenges = [
+    sampleChallenge(),
+    sampleChallenge({
+      id: 'ch-2',
+      kind: 'global',
+      title: 'November workouts',
+      is_mine: false,
+      my_status: null,
+      my_score: null,
+      created_by: null,
+      ranking: null,
+    }),
+    sampleChallenge({
+      id: 'ch-3',
+      title: 'Squat week',
+      is_mine: false,
+      my_status: 'invited',
+      my_score: null,
+      created_by: 'anna',
+      ranking: null,
+    }),
+  ];
+  socialState.notifications = [
+    {
+      id: 1,
+      type: 'friend_request',
+      title: 'New friend request',
+      body: 'marc wants to be friends.',
+      data: { url: '/friends' },
+      read_at: null,
+      created_at: new Date().toISOString(),
+    },
+    {
+      id: 2,
+      type: 'challenge_invite',
+      title: 'Challenge invite',
+      body: 'anna invited you to “Squat week”.',
+      data: { url: '/challenges/ch-3' },
+      read_at: null,
+      created_at: new Date().toISOString(),
+    },
+  ];
+  socialState.privacy = { activity_visibility: 'friends', pr_show_weight: true };
+  for (const k of Object.keys(socialState.notificationSettings))
+    socialState.notificationSettings[k] = true;
+  socialState.reports = [
+    {
+      id: 'r-1',
+      reason: 'spam',
+      note: 'Keeps sending requests',
+      status: 'open',
+      resolution: null,
+      created_at: '2026-11-01T10:00:00Z',
+      resolved_at: null,
+      reporter: 'anna',
+      reported: {
+        ...card('user-5', 'spammy', 1),
+        email: 'spam@test.dev',
+        leaderboard_banned: false,
+        banned: false,
+        reports: 2,
+      },
+      activity: null,
+    },
+  ];
+  socialState.adminBadges = [
+    {
+      id: 'b-1',
+      slug: 'first_workout',
+      name: 'First rep',
+      description: 'Finish your first workout.',
+      icon: 'flag-outline',
+      category: 'milestone',
+      rule_type: 'workout_count',
+      rule: { count: 1 },
+      position: 10,
+      is_hidden: false,
+      earned_by: 2,
+    },
+  ];
+  socialState.adminChallenges = [
+    sampleChallenge({
+      id: 'ch-2',
+      kind: 'global',
+      title: 'November workouts',
+      is_hidden: false,
+      ranking: null,
+    }),
+  ];
+}
+resetSocial();
+
+const relationAfter: Record<string, string> = {
+  add: 'outgoing',
+  accept: 'friends',
+  decline: 'none',
+  remove: 'none',
+  block: 'blocked',
+  unblock: 'none',
+};
+const setRelation = (userId: string, action: string) => {
+  const p = socialState.people.find((x) => x.user_id === userId);
+  if (p) p.relation = relationAfter[action]!;
+};
+
+export const socialMock = {
+  ...jest.requireActual('@/lib/api/social'),
+  searchUsers: jest.fn(async (q: string) =>
+    socialState.people.filter((p) => p.username.includes(q)).map((p) => ({ ...p })),
+  ),
+  sendFriendRequest: jest.fn(async (id: string) => (setRelation(id, 'add'), 'outgoing')),
+  respondFriendRequest: jest.fn(async (id: string, accept: boolean) => {
+    const f = socialState.friends;
+    const u = f.incoming.find((x) => x.user_id === id);
+    f.incoming = f.incoming.filter((x) => x.user_id !== id);
+    if (accept && u) f.friends.push(u);
+    return accept ? 'friends' : 'none';
+  }),
+  removeFriend: jest.fn(async (id: string) => {
+    socialState.friends.friends = socialState.friends.friends.filter((x) => x.user_id !== id);
+    setRelation(id, 'remove');
+    return 'none';
+  }),
+  blockUser: jest.fn(async (id: string) => (setRelation(id, 'block'), 'blocked')),
+  unblockUser: jest.fn(async (id: string) => (setRelation(id, 'unblock'), 'none')),
+  fetchFriends: jest.fn(async () => JSON.parse(JSON.stringify(socialState.friends))),
+  fetchUserProfile: jest.fn(async (username: string) => {
+    const p = socialState.people.find((x) => x.username === username) ?? {
+      ...card('user-2', username),
+      relation: 'none',
+    };
+    return {
+      ...p,
+      streak: { current: 2, longest: 4, this_week_done: true },
+      badges: [{ name: 'First rep', icon: 'flag-outline', earned_at: '2026-10-05T18:00:00Z' }],
+      activity:
+        p.relation === 'friends'
+          ? socialState.feed.filter((a) => a.user.username === username)
+          : null,
+      activity_hidden: false,
+    };
+  }),
+  fetchMyStreak: jest.fn(async () => ({ ...socialState.streak })),
+  fetchFeed: jest.fn(async () => JSON.parse(JSON.stringify(socialState.feed))),
+  react: jest.fn(async (id: string, emoji: string | null) => {
+    const a = socialState.feed.find((x) => x.id === id)!;
+    if (a.my_reaction) a.reactions[a.my_reaction] = (a.reactions[a.my_reaction] ?? 1) - 1;
+    if (a.my_reaction && !a.reactions[a.my_reaction]) delete a.reactions[a.my_reaction];
+    a.my_reaction = emoji;
+    if (emoji) a.reactions[emoji] = (a.reactions[emoji] ?? 0) + 1;
+    return { ...a };
+  }),
+  fetchMyBadges: jest.fn(async () => JSON.parse(JSON.stringify(socialState.badges))),
+  fetchFriendsLeaderboard: jest.fn(async (period: string) => ({
+    period,
+    refreshed_at: '',
+    friends: socialState.friends.friends.length,
+    entries: [
+      { rank: 1, username: 'anna', avatar_url: null, level: 4, points: 400, is_me: false },
+      { rank: 2, username: 'gleb', avatar_url: null, level: 3, points: 300, is_me: true },
+    ],
+  })),
+  fetchChallenges: jest.fn(async () => JSON.parse(JSON.stringify(socialState.challenges))),
+  fetchChallenge: jest.fn(async (id: string) =>
+    JSON.parse(
+      JSON.stringify(socialState.challenges.find((c) => c.id === id) ?? sampleChallenge({ id })),
+    ),
+  ),
+  createFriendChallenge: jest.fn(async () => 'ch-new'),
+  inviteToChallenge: jest.fn(async () => null),
+  setChallengeStatus: jest.fn(async (id: string, status: string) => {
+    const c = socialState.challenges.find((x) => x.id === id)!;
+    c.my_status = status;
+    return { ...c };
+  }),
+  reportUser: jest.fn(async () => null),
+  fetchNotifications: jest.fn(async () => socialState.notifications.map((n) => ({ ...n }))),
+  fetchUnreadCount: jest.fn(async () => socialState.notifications.filter((n) => !n.read_at).length),
+  markNotificationsRead: jest.fn(async (ids?: number[]) => {
+    for (const n of socialState.notifications)
+      if (!ids || ids.includes(n.id)) n.read_at = new Date().toISOString();
+    return null;
+  }),
+  fetchPrivacySettings: jest.fn(async () => ({ ...socialState.privacy })),
+  savePrivacySettings: jest.fn(
+    async (_u: string, v: typeof socialState.privacy) => ((socialState.privacy = { ...v }), v),
+  ),
+  fetchNotificationSettings: jest.fn(async () => ({ ...socialState.notificationSettings })),
+  saveNotificationSettings: jest.fn(
+    async (_u: string, v: Record<string, boolean>) => (
+      (socialState.notificationSettings = { ...v }),
+      v
+    ),
+  ),
+  fetchAdminBadges: jest.fn(async () => JSON.parse(JSON.stringify(socialState.adminBadges))),
+  saveBadge: jest.fn(async () => 'b-new'),
+  setBadgeHidden: jest.fn(async (id: string, hidden: boolean) => {
+    const b = socialState.adminBadges.find((x) => x.id === id);
+    if (b) b.is_hidden = hidden;
+    return null;
+  }),
+  fetchAdminChallenges: jest.fn(async () =>
+    JSON.parse(JSON.stringify(socialState.adminChallenges)),
+  ),
+  saveChallenge: jest.fn(async () => 'ch-new'),
+  setChallengeHidden: jest.fn(async () => null),
+  fetchReports: jest.fn(async (status: string) =>
+    socialState.reports.filter((r) => status === 'all' || r.status === status),
+  ),
+  resolveReport: jest.fn(async (id: string, action: string) => {
+    const r = socialState.reports.find((x) => x.id === id)!;
+    r.status = action === 'dismiss' ? 'dismissed' : 'actioned';
+    r.resolution = action;
+    return null;
+  }),
+  setUserBanned: jest.fn(async () => null),
 };

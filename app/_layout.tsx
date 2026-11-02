@@ -140,6 +140,26 @@ function RootNavigator() {
           />
           <Stack.Screen name="coach" options={{ headerShown: true, title: 'Coach' }} />
           <Stack.Screen name="points" options={{ headerShown: true, title: 'Points' }} />
+          <Stack.Screen name="friends" options={{ headerShown: true, title: 'Friends' }} />
+          <Stack.Screen name="users/[username]" options={{ headerShown: true, title: 'Profile' }} />
+          <Stack.Screen name="badges" options={{ headerShown: true, title: 'Badges' }} />
+          <Stack.Screen name="notifications" options={{ headerShown: true, title: 'Inbox' }} />
+          <Stack.Screen
+            name="challenges/index"
+            options={{ headerShown: true, title: 'Challenges' }}
+          />
+          <Stack.Screen
+            name="challenges/[id]"
+            options={{ headerShown: true, title: 'Challenge' }}
+          />
+          <Stack.Screen
+            name="challenges/new"
+            options={{ headerShown: true, title: 'New challenge' }}
+          />
+          <Stack.Screen
+            name="social-settings"
+            options={{ headerShown: true, title: 'Sharing and notifications' }}
+          />
           <Stack.Screen name="plans/new" options={{ headerShown: true, title: 'AI plan' }} />
           <Stack.Screen name="plans/preview" options={{ headerShown: true, title: 'Your plan' }} />
           <Stack.Screen name="plans/edit-day" options={{ headerShown: true, title: 'Edit day' }} />

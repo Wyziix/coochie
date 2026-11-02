@@ -182,6 +182,7 @@ export type AdminUser = {
   self_hidden: boolean;
   leaderboard_banned: boolean;
   hidden: boolean;
+  banned?: boolean;
   note: string | null;
   pending_flags: number;
 };

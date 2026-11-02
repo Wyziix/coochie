@@ -20,6 +20,9 @@ export default function AdminLayout() {
         <Stack.Screen name="flagged" options={{ title: 'Flagged workouts' }} />
         <Stack.Screen name="users" options={{ title: 'Users' }} />
         <Stack.Screen name="points" options={{ title: 'Points' }} />
+        <Stack.Screen name="badges" options={{ title: 'Badges' }} />
+        <Stack.Screen name="challenges" options={{ title: 'Challenges' }} />
+        <Stack.Screen name="reports" options={{ title: 'Reports' }} />
       </Stack>
     </OnlineOnly>
   );

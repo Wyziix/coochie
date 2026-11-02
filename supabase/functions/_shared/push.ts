@@ -4,12 +4,15 @@ import type { PushMessage } from '../weekly-report/handler.ts';
  * Sends through Expo's push service (Android app). Returns tokens Expo says
  * are no longer registered, so they can be removed.
  */
-export async function sendExpoPush(messages: PushMessage[]): Promise<string[]> {
+export async function sendExpoPush(
+  messages: PushMessage[],
+  channelId = 'reports',
+): Promise<string[]> {
   if (messages.length === 0) return [];
   const res = await fetch('https://exp.host/--/api/v2/push/send', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify(messages.map((m) => ({ ...m, sound: 'default', channelId: 'reports' }))),
+    body: JSON.stringify(messages.map((m) => ({ ...m, sound: 'default', channelId }))),
   });
   if (!res.ok) return [];
   const body = (await res.json().catch(() => null)) as {

@@ -14,7 +14,9 @@ import {
   SegmentedControl,
   Text,
 } from '@/components/ui';
+import { OfflineNote } from '@/components/social/OfflineNote';
 import { useLeaderboard, useMyPoints } from '@/hooks/usePoints';
+import { useFriendsLeaderboard } from '@/hooks/useSocial';
 import { useTheme } from '@/hooks/useTheme';
 import type { LeaderboardEntry, Period } from '@/lib/api/points';
 import { useIsOnline } from '@/lib/offline/network';
@@ -38,7 +40,9 @@ export default function RankingScreen() {
   const theme = useTheme();
   const online = useIsOnline();
   const [period, setPeriod] = useState<Period>('week');
+  const [scope, setScope] = useState<'everyone' | 'friends'>('everyone');
   const board = useLeaderboard(period);
+  const friendsBoard = useFriendsLeaderboard(period, scope === 'friends');
   const mine = useMyPoints().data;
   const data = board.data;
   const me = data?.me;
@@ -67,78 +71,129 @@ export default function RankingScreen() {
       ) : null}
 
       <SegmentedControl
+        options={[
+          { value: 'everyone', label: 'Everyone' },
+          { value: 'friends', label: 'Friends' },
+        ]}
+        value={scope}
+        onChange={setScope}
+        accessibilityLabel="Leaderboard"
+      />
+      <SegmentedControl
         options={periods}
         value={period}
         onChange={setPeriod}
         accessibilityLabel="Leaderboard period"
       />
 
-      {!online && data ? (
-        <Text variant="caption" color="textMuted">
-          Offline, last updated {timeAgo(board.dataUpdatedAt)}.
-        </Text>
-      ) : null}
-
-      {board.isPending ? (
-        <LoadingState />
-      ) : board.error && !data ? (
-        <ErrorState error={board.error} onRetry={() => board.refetch()} />
-      ) : data ? (
+      {scope === 'friends' ? (
+        <FriendsBoard query={friendsBoard} period={period} />
+      ) : (
         <>
-          {me ? (
-            <Card accessibilityLabel="Your rank">
-              <Text variant="label" color="textMuted">
-                You
-              </Text>
-              {me.removed ? (
-                <Text>
-                  You’re not shown on public leaderboards. Your points still count for your level.
-                </Text>
-              ) : me.rank ? (
-                <Text variant="heading">
-                  #{me.rank} · {me.points.toLocaleString()} points
-                </Text>
+          {!online && data ? (
+            <Text variant="caption" color="textMuted">
+              Offline, last updated {timeAgo(board.dataUpdatedAt)}.
+            </Text>
+          ) : null}
+
+          {board.isPending ? (
+            <LoadingState />
+          ) : board.error && !data ? (
+            <ErrorState error={board.error} onRetry={() => board.refetch()} />
+          ) : data ? (
+            <>
+              {me ? (
+                <Card accessibilityLabel="Your rank">
+                  <Text variant="label" color="textMuted">
+                    You
+                  </Text>
+                  {me.removed ? (
+                    <Text>
+                      You’re not shown on public leaderboards. Your points still count for your
+                      level.
+                    </Text>
+                  ) : me.rank ? (
+                    <Text variant="heading">
+                      #{me.rank} · {me.points.toLocaleString()} points
+                    </Text>
+                  ) : (
+                    <Text>{period === 'week' ? 'No points this week yet.' : 'No points yet.'}</Text>
+                  )}
+                  {me.hidden && !me.removed ? (
+                    <Text variant="caption" color="textMuted">
+                      You’re hidden from public leaderboards, so others don’t see you
+                      {me.rank ? `; you’d be #${me.rank}` : ''}. Change it in Profile.
+                    </Text>
+                  ) : null}
+                </Card>
+              ) : null}
+
+              {data.entries.length === 0 ? (
+                <EmptyState
+                  icon="trophy-outline"
+                  title="Nobody here yet"
+                  message={emptyText[period]}
+                />
               ) : (
-                <Text>{period === 'week' ? 'No points this week yet.' : 'No points yet.'}</Text>
+                <Card style={{ gap: 0, paddingVertical: theme.spacing.xs }}>
+                  {data.entries.map((e) => (
+                    <Row key={`${e.rank}-${e.username}`} entry={e} />
+                  ))}
+                </Card>
               )}
-              {me.hidden && !me.removed ? (
+              {me && !meInList && me.rank && !me.hidden ? (
                 <Text variant="caption" color="textMuted">
-                  You’re hidden from public leaderboards, so others don’t see you
-                  {me.rank ? `; you’d be #${me.rank}` : ''}. Change it in Profile.
+                  You’re #{me.rank}, outside the top {data.entries.length}.
                 </Text>
               ) : null}
-            </Card>
-          ) : null}
-
-          {data.entries.length === 0 ? (
-            <EmptyState icon="trophy-outline" title="Nobody here yet" message={emptyText[period]} />
-          ) : (
-            <Card style={{ gap: 0, paddingVertical: theme.spacing.xs }}>
-              {data.entries.map((e) => (
-                <Row key={`${e.rank}-${e.username}`} entry={e} />
-              ))}
-            </Card>
-          )}
-          {me && !meInList && me.rank && !me.hidden ? (
-            <Text variant="caption" color="textMuted">
-              You’re #{me.rank}, outside the top {data.entries.length}.
-            </Text>
-          ) : null}
-          {period === 'week' ? (
-            <Text variant="caption" color="textMuted">
-              The weekly board resets every Monday at 00:00, Madrid time.
-            </Text>
+              {period === 'week' ? (
+                <Text variant="caption" color="textMuted">
+                  The weekly board resets every Monday at 00:00, Madrid time.
+                </Text>
+              ) : null}
+            </>
           ) : null}
         </>
-      ) : null}
-
-      <Card accessibilityLabel="Friends leaderboard, coming soon">
-        <Text variant="label">Friends</Text>
-        <Text variant="caption" color="textMuted">
-          A leaderboard with just your friends is coming with friends and challenges.
-        </Text>
-      </Card>
+      )}
     </Screen>
+  );
+}
+
+function FriendsBoard({
+  query,
+  period,
+}: {
+  query: ReturnType<typeof useFriendsLeaderboard>;
+  period: Period;
+}) {
+  const theme = useTheme();
+  if (query.isPending) return <LoadingState />;
+  if (query.error && !query.data) {
+    return <ErrorState error={query.error} onRetry={() => query.refetch()} />;
+  }
+  const data = query.data!;
+  return (
+    <>
+      <OfflineNote updatedAt={query.dataUpdatedAt} />
+      {data.friends === 0 ? (
+        <EmptyState
+          icon="people-outline"
+          title="No friends yet"
+          message="Add friends in Social → Friends to compete with them here."
+        />
+      ) : (
+        <Card style={{ gap: 0, paddingVertical: theme.spacing.xs }}>
+          {data.entries.map((e) => (
+            <Row key={`${e.rank}-${e.username}`} entry={e} />
+          ))}
+        </Card>
+      )}
+      {period === 'week' ? (
+        <Text variant="caption" color="textMuted">
+          Same rules as the public board: people who hide themselves aren’t shown.
+        </Text>
+      ) : null}
+    </>
   );
 }
 

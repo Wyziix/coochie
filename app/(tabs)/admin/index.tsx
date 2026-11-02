@@ -52,10 +52,22 @@ const sections: Section[] = [
     href: '/admin/points',
   },
   {
-    title: 'Community',
-    description: 'Challenges, badges and user reports',
+    title: 'Reports',
+    description: 'Reported users: dismiss, hide from leaderboards or ban',
+    icon: 'flag-outline',
+    href: '/admin/reports',
+  },
+  {
+    title: 'Badges',
+    description: 'Create, edit and hide badges',
+    icon: 'ribbon-outline',
+    href: '/admin/badges',
+  },
+  {
+    title: 'Challenges',
+    description: 'Global monthly challenges for everyone',
     icon: 'trophy-outline',
-    stage: 9,
+    href: '/admin/challenges',
   },
 ];
 

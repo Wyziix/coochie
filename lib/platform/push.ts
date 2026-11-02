@@ -25,6 +25,10 @@ export async function registerPush(): Promise<boolean> {
     name: 'Weekly reports',
     importance: Notifications.AndroidImportance.DEFAULT,
   });
+  await Notifications.setNotificationChannelAsync('social', {
+    name: 'Friends and challenges',
+    importance: Notifications.AndroidImportance.DEFAULT,
+  });
   const { data } = await Notifications.getExpoPushTokenAsync({ projectId });
   await savePushToken(data, 'android');
   registered = data;

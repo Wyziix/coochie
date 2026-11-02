@@ -59,3 +59,4 @@ jest.mock('@/lib/platform/push', () => ({
 // Points and leaderboards are computed on the server; every screen test gets
 // the fake (state in test-utils/backend: pointsState).
 jest.mock('@/lib/api/points', () => require('@/test-utils/backend').pointsMock);
+jest.mock('@/lib/api/social', () => require('@/test-utils/backend').socialMock);

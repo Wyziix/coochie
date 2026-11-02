@@ -4,6 +4,7 @@ import type { ComponentProps } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useIsAdmin } from '@/hooks/useIsAdmin';
+import { useUnreadCount } from '@/hooks/useSocial';
 import { useTheme } from '@/hooks/useTheme';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
@@ -19,6 +20,7 @@ const tabs: {
   { name: 'workout', title: 'Workout', icon: 'barbell-outline', iconFocused: 'barbell' },
   { name: 'progress', title: 'Progress', icon: 'stats-chart-outline', iconFocused: 'stats-chart' },
   { name: 'ranking', title: 'Ranking', icon: 'trophy-outline', iconFocused: 'trophy' },
+  { name: 'social', title: 'Social', icon: 'people-outline', iconFocused: 'people' },
   { name: 'profile', title: 'Profile', icon: 'person-outline', iconFocused: 'person' },
   {
     name: 'admin',
@@ -33,6 +35,7 @@ export default function TabLayout() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const isAdmin = useIsAdmin();
+  const unread = useUnreadCount().data ?? 0;
 
   return (
     <Tabs
@@ -58,6 +61,16 @@ export default function TabLayout() {
             name={tab.name}
             options={{
               title: tab.title,
+              // Unread inbox entries on the Social tab (all platforms).
+              tabBarBadge:
+                tab.name === 'social' && unread > 0 ? (unread > 99 ? '99+' : unread) : undefined,
+              tabBarBadgeStyle: {
+                backgroundColor: theme.colors.danger,
+                color: theme.colors.onDanger,
+              },
+              // Admin is opened from Profile (keeps six tabs on a phone); the
+              // route stays reachable, its tab button is just not shown.
+              tabBarItemStyle: tab.adminOnly ? { display: 'none' } : undefined,
               tabBarIcon: ({ size, focused }) => (
                 <Ionicons
                   name={focused ? tab.iconFocused : tab.icon}

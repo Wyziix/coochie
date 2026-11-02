@@ -3,7 +3,14 @@
 // (wrangler pages deploy) never uploads folders named node_modules, so without
 // this the icon font and navigation images 404 on the live site and every
 // icon disappears.
-import { existsSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 

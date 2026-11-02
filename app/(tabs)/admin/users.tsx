@@ -12,6 +12,7 @@ import {
   Text,
 } from '@/components/ui';
 import { useAdminUsers, useSetUserModeration, useUserLedger } from '@/hooks/usePoints';
+import { useSetUserBanned } from '@/hooks/useSocial';
 import { useTheme } from '@/hooks/useTheme';
 import type { AdminUser } from '@/lib/api/points';
 import { confirm } from '@/lib/confirm';
@@ -59,6 +60,7 @@ export default function AdminUsersScreen() {
 function UserCard({ user: u }: { user: AdminUser }) {
   const theme = useTheme();
   const moderate = useSetUserModeration();
+  const ban = useSetUserBanned();
   const [showLedger, setShowLedger] = useState(false);
   const ledger = useUserLedger(showLedger ? u.user_id : null);
   const name = u.username ?? u.display_name ?? u.email;
@@ -99,6 +101,25 @@ function UserCard({ user: u }: { user: AdminUser }) {
         value={u.leaderboard_banned}
         disabled={moderate.isPending}
         onChange={(v) => set({ leaderboard_banned: v })}
+      />
+      <Toggle
+        label="Banned (no social features)"
+        who={name}
+        value={!!u.banned}
+        disabled={ban.isPending}
+        onChange={async (v) => {
+          if (
+            v &&
+            !(await confirm({
+              title: `Ban ${name}?`,
+              message: 'Off leaderboards, search, feeds and challenges; no social actions.',
+              confirmLabel: 'Ban',
+              destructive: true,
+            }))
+          )
+            return;
+          ban.mutate({ userId: u.user_id, banned: v });
+        }}
       />
       <Toggle
         label="Hidden"

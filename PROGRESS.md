@@ -26,7 +26,7 @@ App name: **LightweightBaby** · bundle ID / package `com.lightweightbaby.app` �
 | 6     | Claude feedback                      | Done   |
 | 7     | AI plan generator and coach chat     | Done   |
 | 8     | Points and ranking                   | Done   |
-| 9     | Social                               | –      |
+| 9     | Social                               | Done   |
 | 10    | Nutrition                            | –      |
 | 11    | Health sync, export, settings        | –      |
 | 12    | Premium subscription                 | –      |
@@ -410,6 +410,39 @@ Checks: typecheck, lint, prettier, 285 Jest tests (boards per period, my rank ou
 - The weekly goal uses the planned days from the profile now, also for past weeks
 - Bodyweight for the weight check is the current profile value (100 kg if unknown)
 - Leaderboard refresh happens on the first read after a change; with many users a scheduled refresh would be better
+
+## Fix: icons missing on the live site
+
+Expo exports the icon font (and navigation images) under `dist/assets/node_modules/...`, and `wrangler pages deploy` never uploads folders named `node_modules`, so on Cloudflare Pages every icon disappeared (tab bar, icon-only buttons). `npm run build:web` now runs `scripts/fix-web-assets.mjs`, which moves them to `dist/assets/vendor` and rewrites the paths, and fails the build if anything is left under `node_modules`. The local Pages emulator used in browser tests now also refuses `node_modules` paths, and the Stage 9 browser test checks that the Ionicons font actually loads.
+
+## Stage 9 – Social: friends, streaks, badges, challenges
+
+Built:
+
+- **Friends**: search by partial or exact username (never me, blocked users either way, or users hidden/banned by an admin), send / accept / decline / cancel requests, remove, block / unblock (blocking ends the friendship; blocked users can't find me, open my profile or send requests). Requests rate-limited on the server (10 an hour, 30 a day). User pages show username, avatar, level, streak and badges; activity only for friends who share it. **Friends leaderboard** in the Ranking tab (Everyone / Friends; week, month, all time), same privacy rules as the public board
+- **Activity feed** (Social tab): my own and friends' finished workouts, PRs, badges, level-ups and challenge wins. Built on the server in `after_workout_change()` from workouts that count (flagged ones don't show), so edits and deletes update it. Privacy: who sees my activity (friends / nobody) and whether PRs show the weight. Feed items never contain bodyweight, photos, AI feedback or coach chats. Reactions (💪 🔥 👏 🏆), no comments
+- **Streaks**: from the points ledger's weekly goals (one source of truth). Current (up to this week, or last week if this week isn't done yet) and longest, on Home, Profile and user pages
+- **Badges** (`badges`, `user_badges`): evaluated on the server in `after_workout_change()`; editing or deleting a workout can remove a badge. 23 built in: first workout, 10/50/100/250 workouts, 1,000 sets, 4/8/12/26/52-week streaks, first PR, 25 PRs, **bench 1× / squat 1.5× / deadlift 2× bodyweight** (relative, fair for everyone), early bird, night owl, 90-minute session, levels 10/25/50 ("Lightweight baby!"), challenge winner. Collection screen with earned dates and progress toward locked ones. **Admin → Badges**: create/edit/hide with simple rules (workout count, streak, total sets, lift ≥ X kg, lift ≥ X × bodyweight); saving awards or removes it for everyone; logged
+- **Challenges**: global ones by admins (**Admin → Challenges**: metric workouts / sets / points / sets of one exercise, dates, optional goal, winner points and/or badge; logged) that anyone can join; friend challenges (create, invite friends, accept/decline). Progress bar toward the goal, live ranking, final results. Ends at midnight Europe/Madrid after the end date; results and rewards are computed once on the server (winner's points kept when points are rebuilt)
+- **Reports**: "Report user" (reason + optional note) on profiles and feed items, rate-limited. **Admin → Reports**: dismiss, hide from leaderboards, or ban (off leaderboards, search, feeds and challenges, no social actions); all logged. Admin → Users also has the ban switch
+- **Notifications**: friend request, request accepted, friend beat my best lift, challenge invite, challenge ends in 24h, streak at risk (Sunday from 18:00 Madrid). In-app inbox on every platform with an unread badge on the Social tab; Android push through the new `send-push` Edge Function (pg_cron `social_tick` every 5 minutes, one-time token like the weekly reports). Each type can be turned off
+- **Tabs**: Home, Workout, Progress, Ranking, Social, Profile. Admin moved to Profile → "Admin tools" to keep six tabs on a phone
+- **Offline**: feed, friends, badges, challenges, inbox and user pages show the saved copy with an "Offline, last updated" note; adding friends, reacting, reporting and joining show "Needs connection"
+
+Checks: typecheck, lint, prettier, 318 Jest tests, 49 Edge Function tests, DB tests (search rules, request flow and notifications, cancel/decline, rate limit, blocking both ways, feed contents, PR weight hidden, activity "nobody", non-friends can't see or react, reactions, "friend beat my PR", badges awarded and removed on edit and delete with progress, streaks, global challenge scoring in Madrid days, winner bonus kept on rebuild, results once, friend challenge invites only for friends, "ends in 24h" once, friends board, notification settings, reports and ban, admin badges, push claim with token). Browser test of the production build at 390 px and 1440 px: icon font loaded, streak, feed and reactions, friends search/add/accept, report, badges, challenge, inbox, friends board, offline feed, admin reports and badges.
+
+### Decisions
+
+- Badges and feed items are rebuilt per user on each workout change (deterministic, like points)
+- Global challenges need joining (explicit consent to appear in a ranking)
+- "Friend beat my PR" only for workouts finished in the last 3 days and when the lifter shares activity; it never states the weights
+- Challenge winner rewards are separate ledger rows (`source_type = 'challenge'`), kept when workout points are rebuilt
+
+### Known issues / to check
+
+- Android push needs the FCM setup (docs/SETUP.md section 11); until then the inbox covers it
+- Re-running the Stage 8 migration after this one would put back the old points rebuild, which drops challenge rewards on the next workout (re-run only the file that failed)
+- Changing point values in Admin → Points updates level badges on each user's next workout
 
 ## Planned for Stage 13 (polish)
 

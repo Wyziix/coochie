@@ -191,6 +191,20 @@ select public.level_for(0) ->> 'name';  -- Rookie I
 2. No Edge Function changes.
 3. Redeploy the web app: `npm run deploy:web`.
 
+### Stage 9 migration (social)
+
+1. Run `20261112000000_social.sql` (safe to run twice; pg_cron and pg_net are already on from Stage 6). It adds friends, blocks, the feed and reactions, badges (23 built in), challenges, reports, notifications and settings, hooks badges and feed items into `after_workout_change()`, backfills badges/feed for existing workouts, and schedules `social-tick` every 5 minutes.
+
+```sql
+select count(*) from public.badges;  -- 23
+select jobname, schedule from cron.job where jobname = 'social-tick';  -- */5 * * * *
+select b.name, ub.earned_at from public.user_badges ub join public.badges b on b.id = ub.badge_id
+join public.profiles p on p.id = ub.user_id where p.username = 'gleb';
+```
+
+2. Deploy the functions (adds `send-push`): `npm run deploy:functions`.
+3. Redeploy the web app: `npm run deploy:web` (also fixes the missing icons).
+
 ## 6. Enable the custom access token hook
 
 This puts `user_role` (`user` / `admin`) into every login token.
@@ -358,3 +372,11 @@ Apply new migrations first (and `npm run deploy:functions` if `supabase/function
   join public.profiles p on p.id = l.user_id
   where p.username = 'gleb' order by l.earned_at desc limit 30;
   ```
+
+## 14. Social
+
+- **Admin** is now in Profile → "Admin tools" (no Admin tab).
+- **Badges / Challenges / Reports**: Admin → Badges (create, edit, hide), Admin → Challenges (global challenges, rewards), Admin → Reports (dismiss, hide from leaderboards, ban). Everything is logged in `admin_actions`.
+- **Notifications** are in the in-app inbox (Social → Inbox). Android also gets push once FCM is set up (section 11); `social-tick` sends them every 5 minutes through the `send-push` function.
+- **Challenges end** at midnight Europe/Madrid after the end date; results come from the next `social-tick` (or when someone opens the challenge).
+- **Icons missing on the live site?** Deploy with `npm run deploy:web` (it runs `scripts/fix-web-assets.mjs`); Cloudflare Pages doesn't upload `node_modules` folders.

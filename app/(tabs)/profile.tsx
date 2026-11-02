@@ -4,9 +4,11 @@ import { StyleSheet, View } from 'react-native';
 
 import { HideFromBoards } from '@/components/points/HideFromBoards';
 import { LevelCard } from '@/components/points/LevelCard';
+import { StreakCard } from '@/components/social/StreakCard';
 import { InfoRow } from '@/components/profile/InfoRow';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Avatar, Button, Card, Header, Screen, Text } from '@/components/ui';
+import { useIsAdmin } from '@/hooks/useIsAdmin';
 import { useProfile } from '@/hooks/useProfile';
 import { useTheme } from '@/hooks/useTheme';
 import { signOut } from '@/lib/auth';
@@ -21,6 +23,7 @@ import { formatHeight, formatWeight } from '@/lib/units';
 export default function ProfileScreen() {
   const theme = useTheme();
   const { data: profile } = useProfile();
+  const isAdmin = useIsAdmin();
   const [signingOut, setSigningOut] = useState(false);
 
   async function onSignOut() {
@@ -65,6 +68,7 @@ export default function ProfileScreen() {
       </View>
 
       <LevelCard />
+      <StreakCard />
 
       <Button
         title="Edit profile"
@@ -98,6 +102,11 @@ export default function ProfileScreen() {
       <Card>
         <Text variant="heading">Privacy</Text>
         <HideFromBoards profile={profile} />
+        <Button
+          title="Activity sharing and notifications"
+          variant="secondary"
+          onPress={() => router.push('/social-settings')}
+        />
         <Button title="Photo lock" variant="secondary" onPress={() => router.push('/photo-lock')} />
       </Card>
 
@@ -105,6 +114,10 @@ export default function ProfileScreen() {
         <Text variant="heading">Appearance</Text>
         <ThemeToggle />
       </Card>
+
+      {isAdmin ? (
+        <Button title="Admin tools" variant="secondary" onPress={() => router.push('/admin')} />
+      ) : null}
 
       <Button title="Log out" variant="ghost" onPress={onSignOut} loading={signingOut} />
     </Screen>

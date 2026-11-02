@@ -82,6 +82,18 @@ const signedInRoutes = [
   '/admin/flagged',
   '/admin/users',
   '/admin/points',
+  '/social',
+  '/friends',
+  '/users/anna',
+  '/badges',
+  '/notifications',
+  '/challenges',
+  '/challenges/ch-1',
+  '/challenges/new',
+  '/social-settings',
+  '/admin/badges',
+  '/admin/challenges',
+  '/admin/reports',
 ];
 
 describe('every screen renders', () => {

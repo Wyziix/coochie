@@ -31,15 +31,15 @@ describe('admin tab', () => {
     expect(screen.queryByRole('button', { name: /Admin/ })).toBeNull();
   });
 
-  it('is shown to admins, who can hide a global exercise', async () => {
+  it('is opened from Profile by admins, who can hide a global exercise', async () => {
     const { Alert } = require('react-native');
     jest.spyOn(Alert, 'alert').mockImplementation((...args: unknown[]) => {
       (args[2] as { onPress?: () => void }[]).at(-1)?.onPress?.();
     });
 
     resetBackend({ session: fakeSession(), profile: onboardedProfile({ role: 'admin' }) });
-    await renderRouter(appDir, { initialUrl: '/' });
-    await fireEvent.press(await screen.findByRole('button', { name: /Admin/ }));
+    await renderRouter(appDir, { initialUrl: '/profile' });
+    await fireEvent.press(await screen.findByRole('button', { name: 'Admin tools' }));
     await fireEvent.press(await screen.findByRole('button', { name: 'Exercise library' }));
     // Admin list includes hidden exercises.
     expect(await screen.findByText('Old Hidden Move')).toBeOnTheScreen();
