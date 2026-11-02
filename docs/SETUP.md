@@ -2,6 +2,8 @@
 
 Do these once. Values in `<angle brackets>` are yours.
 
+**Since Stage 11 the app is web-only** (installed from the browser). The Android client, APK and EAS steps below are kept for reference but no longer needed; what matters is sections 1, 3, 5, 6, 7, 9 and 16.
+
 ## 1. Supabase project
 
 1. Project Settings → API: copy the **Project URL** and the **publishable key**.
@@ -219,6 +221,31 @@ select pg_get_constraintdef(oid) from pg_constraint where conname = 'sync_tombst
 3. Deploy the functions (adds `food-search`; `coach` and `weekly-report` now include the nutrition summary): `npm run deploy:functions`.
 4. Redeploy the web app: `npm run deploy:web`. For Android, the camera permission needs a new build (`expo-camera` plugin in `app.json`).
 
+### Stage 11 migration (web app: push, export, delete account)
+
+1. Run `20261116000000_web_app.sql` (safe to run twice). It adds `web_push_subscriptions` and `scheduled_pushes` (both with RLS), the weekly-report and rest-timer notification settings, `profiles.default_rest_seconds`, the export and account-deletion functions, and schedules `push-due` every 10 seconds (every minute if your pg_cron is older than 1.5).
+
+```sql
+select tablename, rowsecurity from pg_tables where tablename in ('web_push_subscriptions', 'scheduled_pushes');  -- both true
+select jobname, schedule from cron.job where jobname in ('push-due', 'social-tick');  -- push-due: 10 seconds
+select column_name from information_schema.columns where table_name = 'notification_settings' and column_name in ('weekly_report', 'rest_timer');
+```
+
+2. Web push keys (once, on your computer; the private key never goes into the app or the chat):
+
+```bash
+node scripts/generate-vapid-keys.mjs you@example.com
+```
+
+```bash
+npx -y supabase@2.122.0 secrets set --env-file .vapid.env --project-ref gwyymvaxgmpamtiuhoez
+```
+
+Then add the line it printed (`EXPO_PUBLIC_VAPID_PUBLIC_KEY=...`) to `.env`. Keep `.vapid.env` (git-ignored) somewhere safe: new keys mean everyone has to turn push on again.
+
+3. Deploy the functions (new: `export-data`, `delete-account`; changed: `send-push` is web push now, `weekly-report` writes to the inbox): `npm run deploy:functions`.
+4. Redeploy the web app: `npm run deploy:web`.
+
 ## 6. Enable the custom access token hook
 
 This puts `user_role` (`user` / `admin`) into every login token.
@@ -313,15 +340,38 @@ Changes in Google can take a few minutes to apply.
 
 No cross-origin isolation (COOP/COEP): offline data on web uses IndexedDB, which doesn't need it, so Google profile pictures and avatars keep loading. The service worker (`/sw.js`) is served with `Cache-Control: no-cache` so updates are found.
 
-### On the iPhone
+### Installing the app
 
-1. Open `https://lightweightbaby.pages.dev` in **Safari** (not Chrome; only Safari can install it).
-2. Share button → **Add to Home Screen** → the name shows "LightweightBaby" → **Add**.
-3. Open it from the new icon. It opens full screen, without Safari's address bar.
-4. **Sign in inside the home-screen app**, not in Safari: iPhone keeps their logins separate. If Google sign-in comes back to Safari instead of the app, use "Use email instead" and type the 6-digit code.
-5. Close the app (swipe it away) and open it again from the icon: it should still be signed in.
+There is no App Store or Play Store version: everyone installs the web app.
 
-iOS may shorten the name under the icon ("LightweightB…") if it doesn't fit.
+- **iPhone (Safari):** open the site → Share button → **Add to Home Screen** → Add. Or in the app: Settings (or the card on Home) → **Install app** shows the same steps. Chrome on iPhone works too (Share is in the address bar).
+- **Android (Chrome):** Settings → **Install app** opens Chrome's install dialog. If Chrome hasn't offered it yet, menu ⋮ → **Install app** / **Add to Home screen**.
+- **Sign in inside the installed app**, not in the browser tab: they keep separate data. If Google sign-in comes back to Safari instead of the app, use "Use email instead" and type the 6-digit code.
+- The Install button hides itself once the app runs installed.
+- iOS may shorten the name under the icon ("LightweightB…") if it doesn't fit.
+
+### Custom domain
+
+1. **Buy the domain.** Cheapest with the least setup: Cloudflare itself (dash.cloudflare.com → Domain Registration → Register Domains), sold at cost, with DNS already on Cloudflare. If you buy it elsewhere (Namecheap, Porkbun, OVH...), add it to Cloudflare as a site (Websites → Add a domain, Free plan) and change the domain's nameservers at the seller to the two Cloudflare shows. Wait until Cloudflare says the domain is **Active** (minutes to a few hours).
+2. **Connect it to Pages:** Workers & Pages → lightweightbaby → **Custom domains** → Set up a custom domain → enter `lightweightbaby.app` (your domain) → Activate. Cloudflare adds the DNS record (a CNAME to `lightweightbaby.pages.dev`) for you. Repeat for `www.` if you want it (or redirect www to the bare domain with a Redirect Rule).
+3. **SSL:** nothing to do. Cloudflare issues the certificate automatically; the domain shows **Active** with SSL in the Custom domains list (usually under 15 minutes). In the domain's SSL/TLS settings keep **Full (strict)** and turn on **Always Use HTTPS**.
+4. **Update every place that has the address** (replace `lightweightbaby.app` with yours):
+   - Supabase → Authentication → URL Configuration: **Site URL** = `https://lightweightbaby.app`; **Redirect URLs**: add `https://lightweightbaby.app/**` (keep the `pages.dev` one until everyone has moved, and `http://localhost:8081/**`).
+   - Google Cloud → Credentials → Web client → **Authorized JavaScript origins**: add `https://lightweightbaby.app`. The redirect URI stays the Supabase callback. OAuth consent screen → App domain / authorized domains: add the domain.
+   - Supabase function secret for the Open Food Facts User-Agent and web push contact:
+     ```bash
+     npx -y supabase@2.122.0 secrets set SITE_URL=https://lightweightbaby.app --project-ref gwyymvaxgmpamtiuhoez
+     ```
+     (`OFF_CONTACT`, if you set it, wins for Open Food Facts; `VAPID_SUBJECT` wins for push.)
+   - The manifest needs no change: `public/manifest.json` uses relative paths (`/`, `/icons/...`), so it works on any domain.
+   - Hard-coded links in the code: only the two fallbacks above (`food-search/off.ts`, `send-push/index.ts`), which `SITE_URL` replaces. Email templates in Supabase (Authentication → Emails) use `{{ .SiteURL }}`, so they follow the Site URL.
+   - Docs: the URLs in this file and in PROGRESS.md.
+5. **Redirect the old address** so old bookmarks and home-screen icons land on the new one. Pages projects can't redirect their own `*.pages.dev` name with `_redirects`, so use a Bulk Redirect:
+   - Dashboard → (account) **Bulk Redirects** → Create Bulk Redirect List, add: source `lightweightbaby.pages.dev`, target `https://lightweightbaby.app`, status **301**, and tick **Preserve query string**, **Subpath matching** and **Preserve path suffix**.
+   - Then **Create Bulk Redirect Rule** using that list → Deploy.
+   - Check: `curl -sI https://lightweightbaby.pages.dev/progress` shows `301` and `location: https://lightweightbaby.app/progress`.
+   - Preview URLs (`<hash>.lightweightbaby.pages.dev`) keep working for testing.
+6. **What people need to do once:** a browser keeps logins, offline data and push permission per address, so on the new domain they sign in again and turn push on again (Settings → Notifications). An old home-screen icon still opens the app (through the redirect), but on iPhone the new address is outside the old icon's app, so it opens with a browser bar: delete the old icon and **Install app** again from the new address. Anything waiting to sync on the old address syncs when that old copy is opened once more before switching, so ask people to open the app on the old address once (online) before moving.
 
 ### Redeploying
 
@@ -356,11 +406,7 @@ Apply new migrations first (and `npm run deploy:functions` if `supabase/function
   from public.ai_usage order by created_at desc limit 20;
   ```
 - **Weekly reports:** pg_cron runs `ai_start_weekly_run()` Mondays at 06:15 UTC (catch-up Tuesday and Wednesday for anyone skipped by the cap or the kill switch). It reports last week (Mon-Sun) for users who trained. Admin → AI → "Generate my report now" writes your own report for the current week (for testing).
-- **Notifications:** iPhone (web app): a "New weekly report" card on Home until you open it. Android: a push notification, once push is set up:
-  1. In Firebase create a project with an Android app `com.lightweightbaby.app`, download `google-services.json` into the repo root and add `"googleServicesFile": "./google-services.json"` under `android` in `app.json`.
-  2. Firebase → Project settings → Service accounts → generate a key; then `npx eas-cli@latest credentials -p android` → Google Service Account → FCM V1 → upload it.
-  3. Make sure the project is linked to EAS (`npx eas-cli@latest init` adds `extra.eas.projectId`), then build a new APK. Open Weekly reports and tap "Notify me when a report is ready".
-     Without this, Android shows the same in-app card as the iPhone.
+- **Notifications:** the report goes into the inbox (Social → Inbox) with a "Your weekly report is ready" entry, plus a push notification on devices where push is on (section 16). The "New weekly report" card on Home stays as well.
 
 ## 12. AI plans and coach
 
@@ -391,13 +437,29 @@ Apply new migrations first (and `npm run deploy:functions` if `supabase/function
 
 - **Admin** is now in Profile → "Admin tools" (no Admin tab).
 - **Badges / Challenges / Reports**: Admin → Badges (create, edit, hide), Admin → Challenges (global challenges, rewards), Admin → Reports (dismiss, hide from leaderboards, ban). Everything is logged in `admin_actions`.
-- **Notifications** are in the in-app inbox (Social → Inbox). Android also gets push once FCM is set up (section 11); `social-tick` sends them every 5 minutes through the `send-push` function.
+- **Notifications** are in the in-app inbox (Social → Inbox), and also sent as web push to devices where it's on (section 16).
 - **Challenges end** at midnight Europe/Madrid after the end date; results come from the next `social-tick` (or when someone opens the challenge).
 - **Icons missing on the live site?** Deploy with `npm run deploy:web` (it runs `scripts/fix-web-assets.mjs`); Cloudflare Pages doesn't upload `node_modules` folders.
 
 ## 15. Nutrition
 
 - **Open Food Facts** is called only by the `food-search` function (User-Agent `LightweightBaby/1.0 (OFF_CONTACT or site URL)`), cached in `foods`, rate-limited per user (barcodes 60/hour, searches 30/hour).
-- **Barcode scanner**: Android = expo-camera (needs a build with the camera permission). iPhone home-screen app = ZXing in the browser; Safari asks for camera access the first time. If it was denied: iPhone Settings → Safari → Camera → Allow (or remove and re-add the home-screen app). Manual barcode entry always works.
+- **Barcode scanner**: in the browser and the installed app it's ZXing on the camera; Safari asks for camera access the first time. If it was denied: iPhone Settings → Safari → Camera → Allow (or remove and re-add the home-screen app). Manual barcode entry always works.
 - **Admin → Foods** fixes or hides wrong cached foods. Users' own foods and logs are private.
 - **Node 24** is required to install `@zxing/library` (the project already pins Node 24 in `.nvmrc`).
+
+## 16. Web app: install, push, settings, export, delete
+
+- **Web only.** No APK, no store builds. The native code still compiles (`npx tsc`, Jest), but new features are built for the web app only. Health sync (Health Connect / Apple Health) isn't possible from a web app.
+- **Push notifications** (Android Chrome, desktop browsers, and iPhone home-screen apps on iOS 16.4+; not Safari tabs):
+  - Each person turns them on in Settings → Notifications → **Turn on push notifications**. The browser asks only after that tap, never on load.
+  - They cover friend requests, accepted requests, a friend beating your best lift, challenge invites, challenges ending, streak at risk, the weekly report, and the rest timer. Every type can be switched off there; the inbox keeps working with push off.
+  - The rest timer push is only scheduled while the app is in the background (locked phone, other app). Back in the app, it's cancelled and the in-app sound plays instead.
+  - Delivery: `push-due` (pg_cron, every 10 s) → `send-push` function → the browser's push service (Google, Apple, Mozilla), signed with your VAPID key. Expired subscriptions are removed automatically.
+  - Check: `select count(*) from public.web_push_subscriptions;` and `select created_at, sent from public.push_runs order by created_at desc limit 5;`.
+  - Blocked by mistake? iPhone: Settings → Notifications → LightweightBaby. Android: long-press the app icon → App info → Notifications.
+- **Settings** (Profile → Settings): units, theme, default rest time, notifications and push, who sees my activity, leaderboards, photo lock, nutrition targets, install app, export, delete account.
+- **Export** (Settings → Your data): a zip built on the server with `workouts.csv`, `sets.csv`, `templates.csv`, `personal_records.csv`, `body_stats.csv`, `nutrition.csv`, `water.csv`, `points.csv`, `badges.csv`, `data.json` (everything) and a README. CSVs are UTF-8 with BOM, comma separated, ISO dates, dot decimals, times in Europe/Madrid. **Export with progress photos** asks for the photo PIN first. On iPhone the file opens the share sheet (Save to Files, AirDrop, Mail); on Android and desktop it downloads. 5 exports an hour.
+  - Excel with Spanish or other comma-decimal settings may put everything in one column on double-click: use Data → From Text/CSV → Comma.
+- **Delete account** (Settings → Delete account): sign in again (Google, or an email code) within 10 minutes, type the username, confirm. Files, every row that belongs to or mentions the user, friendships, challenge entries, feed items, reactions, reports and notifications are deleted, then the sign-in itself. Admin log entries stay with the user replaced by `deleted-user-xxxxxxxx`. The device is cleared too (cached data, sync queue, service worker caches, push subscription). The last admin can't delete their account.
+  - Check after a deletion: `select action, target_id, created_at from public.admin_actions where action = 'user.deleted' order by created_at desc limit 5;`.

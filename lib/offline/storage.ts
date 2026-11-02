@@ -34,4 +34,7 @@ export const offlineStorage: OfflineStorage = {
   async removeItem(key) {
     await (await open()).runAsync('DELETE FROM kv WHERE key = ?', key);
   },
+  async clear() {
+    await (await open()).runAsync('DELETE FROM kv');
+  },
 };

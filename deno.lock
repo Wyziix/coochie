@@ -1,8 +1,15 @@
 {
   "version": "5",
   "specifiers": {
+    "jsr:@negrel/http-ece@0.6.0": "0.6.0",
+    "jsr:@negrel/webpush@0.3.0": "0.3.0",
+    "jsr:@std/assert@0.224": "0.224.0",
     "jsr:@std/assert@1": "1.0.19",
+    "jsr:@std/bytes@0.224.0": "0.224.0",
+    "jsr:@std/encoding@0.224.0": "0.224.0",
     "jsr:@std/internal@^1.0.12": "1.0.14",
+    "jsr:@std/media-types@0.224.0": "0.224.0",
+    "jsr:@std/path@0.224.0": "0.224.0",
     "npm:@anthropic-ai/sdk@0.134.0": "0.134.0",
     "npm:@expo/vector-icons@^15.0.2": "15.1.1_expo-font@58.0.11_react@19.3.0_react-native@0.88.1_@babel+core@7.29.7_@expo+dom-webview@58.0.2_@expo+metro-runtime@58.0.15_@react-native+metro-config@0.88.1_@testing-library+react-native@14.1.0_@types+node@22.20.5_@types+react@19.3.0_expo@58.0.21_expo-linking@58.0.15_expo-router@58.0.28_jest@30.5.2_react-dom@19.3.0_react-native-gesture-handler@3.4.0_react-native-reanimated@4.7.1_react-native-safe-area-context@5.10.1_react-native-screens@4.30.1_react-native-web@0.21.4_react-native-worklets@0.13.1_test-renderer@1.3.1_typescript@6.0.3",
     "npm:@react-native-async-storage/async-storage@2.2.0": "2.2.0_react-native@0.88.1_@babel+core@7.29.7_@react-native+metro-config@0.88.1_@types+react@19.3.0_react@19.3.0",
@@ -45,6 +52,7 @@
     "npm:expo-status-bar@~58.0.4": "58.0.4_expo@58.0.21_react@19.3.0_react-native@0.88.1_@babel+core@7.29.7_@expo+dom-webview@58.0.2_@expo+metro-runtime@58.0.15_@react-native+metro-config@0.88.1_@types+react@19.3.0_react-dom@19.3.0_react-native-web@0.21.4",
     "npm:expo-system-ui@~58.0.7": "58.0.7_expo@58.0.21_react-native@0.88.1_react-native-web@0.21.4_@babel+core@7.29.7_@expo+dom-webview@58.0.2_@expo+metro-runtime@58.0.15_@react-native+metro-config@0.88.1_@testing-library+react-native@14.1.0_@types+node@22.20.5_@types+react@19.3.0_expo-linking@58.0.15_expo-router@58.0.28_jest@30.5.2_react@19.3.0_react-dom@19.3.0_react-native-gesture-handler@3.4.0_react-native-reanimated@4.7.1_react-native-safe-area-context@5.10.1_react-native-screens@4.30.1_react-native-worklets@0.13.1_test-renderer@1.3.1_typescript@6.0.3",
     "npm:expo@~58.0.21": "58.0.21_@expo+dom-webview@58.0.2_@expo+metro-runtime@58.0.15_react@19.3.0_react-dom@19.3.0_react-native@0.88.1_react-native-web@0.21.4_@babel+core@7.29.7_@react-native+metro-config@0.88.1_@testing-library+react-native@14.1.0_@types+node@22.20.5_@types+react@19.3.0_expo-linking@58.0.15_expo-router@58.0.28_jest@30.5.2_react-native-gesture-handler@3.4.0_react-native-reanimated@4.7.1_react-native-safe-area-context@5.10.1_react-native-screens@4.30.1_react-native-worklets@0.13.1_test-renderer@1.3.1_typescript@6.0.3",
+    "npm:fflate@0.8.2": "0.8.2",
     "npm:jest-expo@~58.0.13": "58.0.13_@react-native+jest-preset@0.88.1_expo@58.0.21_jest@30.5.2_react-native@0.88.1_@babel+core@7.29.7_@expo+dom-webview@58.0.2_@expo+metro-runtime@58.0.15_@react-native+metro-config@0.88.1_@types+node@22.20.5_@types+react@19.3.0_react@19.3.0_react-dom@19.3.0_react-native-web@0.21.4_react-native-worklets@0.13.1_typescript@6.0.3",
     "npm:jest@^30.5.2": "30.5.2_@types+node@22.20.5",
     "npm:prettier@^3.9.10": "3.9.10",
@@ -61,14 +69,49 @@
     "npm:zustand@^5.0.16": "5.0.16_@types+react@19.3.0_react@19.3.0"
   },
   "jsr": {
+    "@negrel/http-ece@0.6.0": {
+      "integrity": "7afdd81b86ea5b21a9677b323c01c3338705e11cc2bfed250870f5349d8f86f7",
+      "dependencies": [
+        "jsr:@std/bytes",
+        "jsr:@std/encoding"
+      ]
+    },
+    "@negrel/webpush@0.3.0": {
+      "integrity": "5200a56e81668f2debadea228fbeabfe0eda2ee85a56786611dd97950bc51b23",
+      "dependencies": [
+        "jsr:@negrel/http-ece",
+        "jsr:@std/bytes",
+        "jsr:@std/encoding",
+        "jsr:@std/media-types",
+        "jsr:@std/path"
+      ]
+    },
+    "@std/assert@0.224.0": {
+      "integrity": "8643233ec7aec38a940a8264a6e3eed9bfa44e7a71cc6b3c8874213ff401967f"
+    },
     "@std/assert@1.0.19": {
       "integrity": "eaada96ee120cb980bc47e040f82814d786fe8162ecc53c91d8df60b8755991e",
       "dependencies": [
         "jsr:@std/internal"
       ]
     },
+    "@std/bytes@0.224.0": {
+      "integrity": "a2250e1d0eb7d1c5a426f21267ab9bdeac2447fa87a3d0d1a467d3f7a6058e49"
+    },
+    "@std/encoding@0.224.0": {
+      "integrity": "efb6dca97d3e9c31392bd5c8cfd9f9fc9decf5a1f4d1f78af7900a493bcf89b5"
+    },
     "@std/internal@1.0.14": {
       "integrity": "291516b3d4c35024d6ffbc0a9df5bf4c64116e05b50012cf846710152d2ffdf7"
+    },
+    "@std/media-types@0.224.0": {
+      "integrity": "5ac87989393f8cb1c81bee02aef6f5d4c8289b416deabc04f9ad25dff292d0b0"
+    },
+    "@std/path@0.224.0": {
+      "integrity": "55bca6361e5a6d158b9380e82d4981d82d338ec587de02951e2b7c3a24910ee6",
+      "dependencies": [
+        "jsr:@std/assert@0.224"
+      ]
     }
   },
   "npm": {
@@ -4444,6 +4487,9 @@
     },
     "fetch-nodeshim@0.4.10": {
       "integrity": "sha512-m6I8ALe4L4XpdETy7MJZWs6L1IVMbjs99bwbpIKphxX+0CTns4IKDWJY0LWfr4YsFjfg+z1TjzTMU8lKl8rG0w=="
+    },
+    "fflate@0.8.2": {
+      "integrity": "sha512-cPJU47OaAoCbg0pBvzsgpTPhmhqI5eJjh/JIu8tPj5q+T7iLvW/JAYUqmE7KOB4R1ZyEhzBaIQpQpardBF5z8A=="
     },
     "file-entry-cache@8.0.0": {
       "integrity": "sha512-XXTUwCvisa5oacNGRP9SfNtYBNAMi+RPwBFmblZEF7N7swHYQS6/Zfk7SRwx4D5j3CH211YNRco1DEMNVfZCnQ==",

@@ -8,6 +8,7 @@ Deno.serve((req) =>
     userIdFromAuth,
     rpc,
     fetch: (url, init) => fetch(url, init),
-    contact: Deno.env.get('OFF_CONTACT'),
+    // OFF_CONTACT, else the app's address (SITE_URL secret once there's a custom domain).
+    contact: Deno.env.get('OFF_CONTACT') || Deno.env.get('SITE_URL'),
   }),
 );

@@ -282,7 +282,7 @@ select pg_temp.logout();
 select pg_temp.check((select count(*) = 2 from public.admin_actions where action in ('badge.create', 'badge.hidden')), 'badge changes logged');
 
 -- Push: only with the one-time token; messages for users with a device.
-insert into public.push_tokens (token, user_id) values ('ExponentPushToken[anna]', pg_temp.u('b'));
+insert into public.web_push_subscriptions (endpoint, user_id, p256dh, auth) values ('https://push.example/anna', pg_temp.u('b'), repeat('B', 87), repeat('a', 22));
 insert into public.push_runs (id, token_hash) values ('b9b90000-0000-0000-0000-000000000001', extensions.digest('push-secret', 'sha256'));
 select pg_temp.expect_error($$select public.push_claim('b9b90000-0000-0000-0000-000000000001', 'guess')$$, 'push run needs the token');
 select pg_temp.check((select jsonb_array_length(public.push_claim('b9b90000-0000-0000-0000-000000000001', 'push-secret')) >= 1), 'claims anna''s messages');

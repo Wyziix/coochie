@@ -4,6 +4,7 @@ import { NewReportBanner } from '@/components/ai/NewReportBanner';
 import { WeeklyOverview } from '@/components/home/WeeklyOverview';
 import { NutritionCard } from '@/components/nutrition/NutritionCard';
 import { LevelCard } from '@/components/points/LevelCard';
+import { InstallCard } from '@/components/settings/InstallCard';
 import { StreakCard } from '@/components/social/StreakCard';
 import { Button, Header, Screen } from '@/components/ui';
 import { useProfile } from '@/hooks/useProfile';
@@ -17,6 +18,7 @@ export default function HomeScreen() {
       scroll
       header={<Header title={name ? `Hi, ${name}` : 'Home'} subtitle="Your week at a glance" />}
     >
+      <InstallCard dismissible />
       <NewReportBanner />
       <LevelCard />
       <StreakCard />

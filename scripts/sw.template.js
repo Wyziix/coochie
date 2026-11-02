@@ -6,6 +6,9 @@
  *   Google sign-in always go straight to the network.
  * - A new deploy installs in the background and waits; the app shows
  *   "Update available" and the user taps to switch (SKIP_WAITING).
+ * - Web push (send-push Edge Function): shows the notification; a tap opens
+ *   or focuses the app on the right screen. The rest timer push is skipped
+ *   while the app is on screen (the app plays its own alert then).
  */
 const VERSION = '__VERSION__';
 const FILES = __FILES__;
@@ -45,19 +48,60 @@ self.addEventListener('fetch', (event) => {
 
   if (request.mode === 'navigate') {
     // Every page of the app is the same single-page shell.
+    // caches.match (not caches.open) never re-creates a cache that was cleared.
     event.respondWith(
-      caches
-        .open(CACHE)
-        .then((cache) => cache.match('/'))
-        .then((cached) => cached || fetch(request)),
+      caches.match('/', { cacheName: CACHE }).then((cached) => cached || fetch(request)),
     );
     return;
   }
 
   event.respondWith(
-    caches
-      .open(CACHE)
-      .then((cache) => cache.match(url.pathname))
-      .then((cached) => cached || fetch(request)),
+    caches.match(url.pathname, { cacheName: CACHE }).then((cached) => cached || fetch(request)),
+  );
+});
+
+self.addEventListener('push', (event) => {
+  let msg = {};
+  try {
+    msg = event.data ? event.data.json() : {};
+  } catch {
+    msg = { body: event.data ? event.data.text() : '' };
+  }
+  const tag = typeof msg.tag === 'string' ? msg.tag : undefined;
+  const data = msg.data && typeof msg.data === 'object' ? msg.data : {};
+  event.waitUntil(
+    (async () => {
+      if (tag && tag.startsWith('rest')) {
+        const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+        if (windows.some((c) => c.visibilityState === 'visible')) return;
+      }
+      await self.registration.showNotification(msg.title || 'LightweightBaby', {
+        body: msg.body || '',
+        tag,
+        renotify: Boolean(tag && tag.startsWith('rest')),
+        icon: '/icons/icon-192.png',
+        badge: '/icons/badge-96.png',
+        data,
+      });
+    })(),
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const raw = (event.notification.data && event.notification.data.url) || '/';
+  // Only paths inside this app.
+  const path = typeof raw === 'string' && raw.startsWith('/') && !raw.startsWith('//') ? raw : '/';
+  event.waitUntil(
+    (async () => {
+      const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      const open = windows.find((c) => new URL(c.url).origin === self.location.origin);
+      if (open) {
+        await open.focus();
+        open.postMessage({ type: 'OPEN_URL', url: path });
+        return;
+      }
+      await self.clients.openWindow(path);
+    })(),
   );
 });

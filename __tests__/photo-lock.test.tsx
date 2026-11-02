@@ -225,9 +225,11 @@ describe('photo lock settings', () => {
     expect(screen.getByText('Off')).toBeOnTheScreen();
   });
 
-  it('is reachable from the Profile tab', async () => {
+  it('is reachable from Profile → Settings', async () => {
     await renderRouter(appDir, { initialUrl: '/profile' });
-    await fireEvent.press(await screen.findByRole('button', { name: 'Photo lock' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Settings' }));
+    await waitFor(() => expect(screen).toHavePathname('/settings'));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Photo lock settings' }));
     await waitFor(() => expect(screen).toHavePathname('/photo-lock'));
     expect(await screen.findByText('PIN')).toBeOnTheScreen();
   });

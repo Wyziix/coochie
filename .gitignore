@@ -53,3 +53,6 @@ coverage/
 # supabase local
 supabase/.temp/
 supabase/.branches/
+
+# Web push keys made by scripts/generate-vapid-keys.mjs (never commit)
+.vapid.env

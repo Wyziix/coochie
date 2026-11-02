@@ -3,11 +3,13 @@ import { StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { UpdateBanner } from '@/components/offline/UpdateBanner';
 import { useTheme } from '@/hooks/useTheme';
+import { captureInstallPrompt } from '@/lib/platform/install';
 import { registerServiceWorker } from '@/lib/platform/serviceWorker';
 
 export const APP_MAX_WIDTH = 600;
 
 registerServiceWorker();
+captureInstallPrompt();
 
 /**
  * Web: centers the app in a phone-width column so it looks like the app on

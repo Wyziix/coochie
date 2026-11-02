@@ -33,7 +33,8 @@ export default function WorkoutScreen() {
   const { data: restSettings } = useRestSettings();
   const units = profile?.units ?? 'kg';
 
-  const start = (t: Template) => startTemplateWorkout(t, units, restSettings);
+  const start = (t: Template) =>
+    startTemplateWorkout(t, units, restSettings, profile?.default_rest_seconds ?? null);
   const open = (t: Template) => router.push({ pathname: '/templates/[id]', params: { id: t.id } });
   const section = { gap: theme.spacing.sm } as const;
 

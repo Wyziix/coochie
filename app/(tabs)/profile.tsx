@@ -2,11 +2,9 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { HideFromBoards } from '@/components/points/HideFromBoards';
 import { LevelCard } from '@/components/points/LevelCard';
 import { StreakCard } from '@/components/social/StreakCard';
 import { InfoRow } from '@/components/profile/InfoRow';
-import { ThemeToggle } from '@/components/ThemeToggle';
 import { Avatar, Button, Card, Header, Screen, Text } from '@/components/ui';
 import { useIsAdmin } from '@/hooks/useIsAdmin';
 import { useProfile } from '@/hooks/useProfile';
@@ -99,21 +97,7 @@ export default function ProfileScreen() {
         <InfoRow label="Units" value={units} />
       </Card>
 
-      <Card>
-        <Text variant="heading">Privacy</Text>
-        <HideFromBoards profile={profile} />
-        <Button
-          title="Activity sharing and notifications"
-          variant="secondary"
-          onPress={() => router.push('/social-settings')}
-        />
-        <Button title="Photo lock" variant="secondary" onPress={() => router.push('/photo-lock')} />
-      </Card>
-
-      <Card>
-        <Text variant="heading">Appearance</Text>
-        <ThemeToggle />
-      </Card>
+      <Button title="Settings" variant="secondary" onPress={() => router.push('/settings')} />
 
       {isAdmin ? (
         <Button title="Admin tools" variant="secondary" onPress={() => router.push('/admin')} />

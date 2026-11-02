@@ -2,12 +2,14 @@
 
 App name: **LightweightBaby** · bundle ID / package `com.lightweightbaby.app` · slug `lightweightbaby`
 
-## Plan changes (agreed 2026-10-29)
+## Plan changes (agreed 2026-10-29, updated 2026-11-02)
 
+- **Web-only from Stage 11 on (2026-11-02).** The app is a PWA and nothing else: no APK, no app stores, no native builds. Everyone installs it from the browser (iPhone: Safari → Share → Add to Home Screen; Android: Chrome → Install app). The native code keeps compiling, but no new native-only features are built. Push is **web push** (Android Chrome, desktop, iPhone home-screen apps on iOS 16.4+); the Expo/FCM push plan is dropped. The lines below about the APK and EAS are replaced by this.
+- **Health sync dropped:** only possible with a native app (Health Connect / Apple Health have no web API).
 - **Stage 12 skipped.** No RevenueCat, no paywall, no premium tier. The server-side daily AI limit stays (Stage 6/7) and must be adjustable by an admin without a code change (a default limit plus per-user overrides in the database).
-- **Stage 13:** no App Store / Google Play checklist. Instead: EAS internal distribution, an Android APK shareable by link, plus instructions for installing on iOS.
+- ~~**Stage 13:** EAS internal distribution, an Android APK shareable by link~~ → Stage 13 is polish and the web release (custom domain, install steps for everyone).
 - **Account deletion stays** (Stage 11) even though we're not on the stores.
-- **Distribution:** Android = APK through EAS (internal distribution). iPhone = the **web app installed as a PWA** (Safari → Share → Add to Home Screen). No native iOS build planned.
+- ~~**Distribution:** Android = APK through EAS~~ → everyone uses the web app installed as a PWA (see the first point).
 - **Web is a first-class target from Stage 1 on.** Every feature must work on web, or be hidden/disabled cleanly there (health sync, background notifications, barcode scanner if needed, etc.). Never crash on web.
 - **Google login on web** uses the Supabase OAuth redirect (PKCE). Android uses native Google sign-in.
 - **PWA:** installable, manifest + icons, name "LightweightBaby", `display: standalone`.
@@ -15,22 +17,22 @@ App name: **LightweightBaby** · bundle ID / package `com.lightweightbaby.app` �
 
 ## Stage status
 
-| Stage | Name                                 | Status |
-| ----- | ------------------------------------ | ------ |
-| 0     | Project setup                        | Done   |
-| 1     | Google login and onboarding          | Done   |
-| 2     | Exercise library and workout logging | Done   |
-| 3     | Templates and history                | Done   |
-| 4     | Progress tracking                    | Done   |
-| 5     | Offline mode and sync                | Done   |
-| 6     | Claude feedback                      | Done   |
-| 7     | AI plan generator and coach chat     | Done   |
-| 8     | Points and ranking                   | Done   |
-| 9     | Social                               | Done   |
-| 10    | Nutrition                            | Done   |
-| 11    | Health sync, export, settings        | –      |
-| 12    | Premium subscription                 | –      |
-| 13    | Polish and release                   | –      |
+| Stage | Name                                                                           | Status  |
+| ----- | ------------------------------------------------------------------------------ | ------- |
+| 0     | Project setup                                                                  | Done    |
+| 1     | Google login and onboarding                                                    | Done    |
+| 2     | Exercise library and workout logging                                           | Done    |
+| 3     | Templates and history                                                          | Done    |
+| 4     | Progress tracking                                                              | Done    |
+| 5     | Offline mode and sync                                                          | Done    |
+| 6     | Claude feedback                                                                | Done    |
+| 7     | AI plan generator and coach chat                                               | Done    |
+| 8     | Points and ranking                                                             | Done    |
+| 9     | Social                                                                         | Done    |
+| 10    | Nutrition                                                                      | Done    |
+| 11    | Web app: install, push, settings, export, delete account (health sync dropped) | Done    |
+| 12    | Premium subscription                                                           | Skipped |
+| 13    | Polish and release                                                             | –       |
 
 ## Stage 0 – Project setup
 
@@ -334,7 +336,7 @@ Checks: typecheck, lint, prettier, 242 Jest tests (feedback only on tap, saved f
 
 ### Known issues / to check
 
-- Android push needs the FCM setup in docs/SETUP.md section 11 and a new build; until then Android shows the in-app card
+- ~~Android push needs the FCM setup~~ (dropped in Stage 11: web push instead)
 - pg_cron and pg_net must be turned on before running the migration (it warns if not)
 - Feedback for a workout logged offline appears only after it synced
 - Exact token counts per call are in `ai_usage`; check the first real calls (see the live check in the Stage 6 report)
@@ -440,7 +442,7 @@ Checks: typecheck, lint, prettier, 318 Jest tests, 49 Edge Function tests, DB te
 
 ### Known issues / to check
 
-- Android push needs the FCM setup (docs/SETUP.md section 11); until then the inbox covers it
+- ~~Android push needs the FCM setup~~ (dropped in Stage 11: web push instead)
 - Re-running the Stage 8 migration after this one would put back the old points rebuild, which drops challenge rewards on the next workout (re-run only the file that failed)
 - Changing point values in Admin → Points updates level badges on each user's next workout
 
@@ -472,6 +474,34 @@ Checks: typecheck, lint, prettier, 340 Jest tests (portion maths, Mifflin-St Jeo
 - ZXing on the iPhone home-screen app is tested only in Chromium with a fake camera here; please do the real check in the report
 - Open Food Facts data quality varies; wrong products can be fixed or hidden in Admin → Foods
 - Creating your own food and saving targets need a connection
+
+## Stage 11 – Web app: install, push, settings, export, delete account
+
+Direction change: web-only (see Plan changes). Health sync skipped: only possible with a native app.
+
+Built:
+
+- **Install app**: Android Chrome's `beforeinstallprompt` is caught as early as possible (inline script in `index.html`, then `lib/platform/install.web.ts`) and shown from an **Install app** button (Settings, and a card on Home with "Not now"). iPhone Safari gets a short visual guide (Share → Add to Home Screen → Add). Hidden when the app already runs installed (`display-mode: standalone` / `navigator.standalone`) and after `appinstalled`
+- **Manifest and splash**: name, short name, `id`, `start_url`, `scope`, `display: standalone`, portrait, theme and background `#0B0D10`, `lang`, categories, icons 192/512 plus maskable 192/512 (checked). New: 13 iPhone launch screens (`public/splash`, `apple-touch-startup-image` for every iPhone size from SE to 17 Pro Max, made by `scripts/make-splash.mjs`), a monochrome notification badge icon. Android builds its splash from the manifest
+- **Web push**: VAPID keys made locally with `scripts/generate-vapid-keys.mjs` (private key only in Supabase secrets, public key in `EXPO_PUBLIC_VAPID_PUBLIC_KEY`). The permission prompt only appears after tapping **Turn on push notifications**; on start the app only refreshes an existing subscription. iPhone Safari tabs are told to install first (iOS only allows push in the home-screen app). `send-push` now encrypts and signs web push (RFC 8291 / VAPID, `@negrel/webpush`), removes subscriptions the push service reports gone, and sends at most 20 at a time. The service worker shows the notification and a tap opens (or focuses) the app on the right screen. Covers every inbox type plus the weekly report (now also an inbox entry) and the **rest timer**: scheduled on the server (`schedule_push`, `push-due` every 10 s) only while the app is in the background, cancelled when you come back or skip the rest. Each type can be turned off; the inbox stays the fallback
+- **Settings** (Profile → Settings): units, theme, **default rest time** (used when adding exercises and starting templates, after the exercise's own rest), notifications + push, who sees my activity, PR weights, hide from leaderboards, photo lock, nutrition targets, install app, export, delete account. Profile now just links there
+- **Export** (`export-data` function): a zip with 9 CSVs (workouts, sets, templates, PRs, body stats, nutrition, water, points, badges), `data.json` with everything (also programs, coach chats, AI feedback, friends, challenges, own foods, custom exercises) and a README. CSV: UTF-8 BOM, CRLF, ISO dates (times as `YYYY-MM-DD HH:MM:SS`, Europe/Madrid), dot decimals, quoting, no formulas from user text. Photos only through **Export with progress photos**, which sits behind the photo PIN (the unlock token is checked as the user). Two taps on purpose (build, then **Save file**), so the file is saved inside a fresh tap: iPhone gets the share sheet (Web Share with the file, which works in the home-screen app), Android and desktop a normal download. 5 an hour
+- **Delete account** (`delete-account` function + `delete_user_data()`): needs a sign-in from the last 10 minutes (read from the session's JWT `amr`, so it's this device's sign-in, by Google or email code) and the typed username; the last admin can't delete. Order: storage files (avatars, progress photos) through the Storage API → every row in every table that belongs to the user (found generically from the foreign keys to `auth.users`, so new tables are covered automatically), plus other people's inbox entries about them, reports by or about them, friend challenges they made, their reactions and feed items → admin log entries kept with the id and username replaced by `deleted-user-xxxxxxxx` (also inside notes) and a `user.deleted` entry → the auth user. Then the device: push unsubscribed, sync queue and cached data cleared, offline database deleted, service worker caches and local/session storage cleared, signed out
+
+Checks: typecheck, lint, prettier, 366 Jest tests (Settings sections, push asked only after the tap, notification types, default rest and units saved, export built then saved, server messages shown, delete needs a recent sign-in and the exact username, delete clears the device and signs out, last admin refused; web modules with fake browser APIs: VAPID subscribe and save, denied, iPhone needs install, install prompt kept and shown, iPhone guide, share sheet / download, rest push only in the background), 78 Edge Function tests (web push with real encryption against a fake push service, 404/410 removal, rest timer urgent and short-lived, batching; export zip contents, Excel CSV format, Madrid times, photos only with a valid unlock and only the user's files, rate limit; delete order, 10-minute rule, username, last admin, storage failure stops before rows), DB tests (subscriptions RLS and moving between accounts, schedule/cancel, claim once, nothing twice, gone subscriptions, weekly report notice and opt-out, default rest bounds, export contents and rate limit; a full account with workouts, PRs, custom exercise, template, body stats, photos, nutrition, water, AI, friends, reactions, a friend challenge, reports both ways and admin history is deleted, then **every uuid/text/json column of every table and view in public, auth and storage is scanned: no id, username, email or content of the user is left**; other users' data untouched; admin log anonymised; last admin refused). Browser test of the production build at 390 px (iPhone) and 1440 px: install guide / install prompt, Settings, push turned on with the real permission flow and a push delivered to the real service worker (rest timer push skipped while the app is open), rest push scheduled on going to the background and cancelled on return, export downloaded (desktop) and handed to the share sheet (iPhone), delete with re-sign-in by email code, after which localStorage, caches and the offline database are empty and push is unsubscribed.
+
+### Decisions
+
+- Rest timer push is scheduled only while the app is hidden, so iOS never gets a push it has to hide (Safari revokes push for sites that send silent pushes)
+- Re-sign-in is checked from the session's own sign-in time, not the account's last sign-in, so a fresh sign-in on another device doesn't unlock deletion here
+- Export CSVs use commas (what Excel, Numbers and Sheets expect by default); with comma-decimal settings Excel may need Data → From Text/CSV
+- Friend challenges the user created are deleted with them; points others already won from them stay
+
+### Known issues / to check
+
+- Real push delivery needs the VAPID secrets and a real device: please check on the iPhone home-screen app (iOS 16.4+) and Android Chrome
+- After moving to a custom domain people sign in and turn push on again there (storage is per address); see docs/SETUP.md "Custom domain"
+- Re-running the Stage 9 migration after this one would put back the Expo push claim (re-run only the file that failed)
 
 ## Planned for Stage 13 (polish)
 

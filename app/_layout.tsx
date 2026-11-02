@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { Stack } from 'expo-router';
+import { router, Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 
@@ -14,6 +14,7 @@ import { useAuthListener } from '@/hooks/useAuthListener';
 import { useProfile } from '@/hooks/useProfile';
 import { useThemeHydrated } from '@/hooks/useThemeHydrated';
 import { signOut } from '@/lib/auth';
+import { takeReturnPath } from '@/lib/auth/returnPath';
 import { startQueryPersistence } from '@/lib/offline/cache';
 import { loadOutbox } from '@/lib/offline/outbox';
 import { useAuthStore } from '@/stores/authStore';
@@ -67,6 +68,13 @@ function RootNavigator() {
   useEffect(() => {
     if (ready) SplashScreen.hideAsync().catch(() => {});
   }, [ready]);
+
+  // Back to where a Google sign-in redirect started (e.g. Delete account).
+  useEffect(() => {
+    if (!ready || !signedIn || !onboarded) return;
+    const path = takeReturnPath();
+    if (path) setTimeout(() => router.push(path as never), 0);
+  }, [ready, signedIn, onboarded]);
 
   if (!ready) return <LoadingState />;
 
@@ -163,6 +171,15 @@ function RootNavigator() {
           <Stack.Screen name="plans/new" options={{ headerShown: true, title: 'AI plan' }} />
           <Stack.Screen name="plans/preview" options={{ headerShown: true, title: 'Your plan' }} />
           <Stack.Screen name="plans/edit-day" options={{ headerShown: true, title: 'Edit day' }} />
+          <Stack.Screen name="settings" options={{ headerShown: true, title: 'Settings' }} />
+          <Stack.Screen
+            name="delete-account"
+            options={{ headerShown: true, title: 'Delete account' }}
+          />
+          <Stack.Screen
+            name="photos/export"
+            options={{ headerShown: true, title: 'Export with photos' }}
+          />
         </Stack.Protected>
       </Stack>
     </>

@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 
 import { onNotificationTap, registerPush } from '@/lib/platform/push';
 
-/** Android: registers for weekly-report pushes and opens the report on tap. */
+/** Keeps this device's web push subscription on the signed-in user; opens tapped notifications. */
 export function AiWatcher() {
   useEffect(() => {
     registerPush().catch(() => {});

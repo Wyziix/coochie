@@ -6,16 +6,18 @@ import { Button, Card, EmptyState, ErrorState, LoadingState, Text } from '@/comp
 import { useWeeklyReports } from '@/hooks/useAi';
 import { useTheme } from '@/hooks/useTheme';
 import { weekLabel } from '@/lib/ai/format';
-import { askForPush, pushAllowed, supportsPush } from '@/lib/platform/push';
+import { pushState, type PushState } from '@/lib/platform/push';
 
 /** Weekly AI reports, newest first. They're written every Monday for weeks you trained. */
 export default function ReportsScreen() {
   const theme = useTheme();
   const { data, isPending, error, refetch } = useWeeklyReports();
-  const [push, setPush] = useState<boolean | null>(null);
+  const [push, setPush] = useState<PushState | null>(null);
 
   useEffect(() => {
-    pushAllowed().then(setPush);
+    pushState()
+      .then(setPush)
+      .catch(() => setPush('unsupported'));
   }, []);
 
   if (isPending) return <LoadingState />;
@@ -29,11 +31,11 @@ export default function ReportsScreen() {
       <Text color="textMuted">
         Every Monday you get a short report on the week before, if you trained.
       </Text>
-      {supportsPush && push === false ? (
+      {push === 'off' || push === 'needs_install' ? (
         <Button
           title="Notify me when a report is ready"
           variant="secondary"
-          onPress={() => askForPush().then(setPush)}
+          onPress={() => router.push('/settings')}
         />
       ) : null}
       {data.length === 0 ? (

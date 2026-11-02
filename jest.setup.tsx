@@ -34,6 +34,9 @@ jest.mock('@/lib/offline/storage', () => {
       removeItem: async (key: string) => {
         memory.delete(key);
       },
+      clear: async () => {
+        memory.clear();
+      },
     },
   };
 });
@@ -46,12 +49,13 @@ jest.mock('@/lib/platform/network', () => ({
   },
 }));
 
-// Push notifications (Android app) do nothing in tests.
+// Web push: off in tests unless a test turns it on.
 jest.mock('@/lib/platform/push', () => ({
-  supportsPush: false,
+  pushState: jest.fn(async () => 'off'),
+  enablePush: jest.fn(async () => 'on'),
+  disablePush: jest.fn(async () => {}),
+  pushIsOn: jest.fn(async () => false),
   registerPush: jest.fn(async () => false),
-  askForPush: jest.fn(async () => false),
-  pushAllowed: jest.fn(async () => false),
   unregisterPush: jest.fn(async () => {}),
   onNotificationTap: jest.fn(() => () => {}),
 }));

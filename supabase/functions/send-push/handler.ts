@@ -1,16 +1,46 @@
-// Android push for inbox notifications. pg_cron (social_tick, every 5 min)
-// creates a run with a one-time token and POSTs { run_id, token } here; the
-// run's messages are claimed (and marked sent) in the database. The inbox in
-// the app works without this (iPhone web app, or before FCM is set up).
+// Web push for inbox notifications and the rest timer. pg_cron (push_due,
+// every 10 seconds) creates a run with a one-time token and POSTs
+// { run_id, token } here; the run's messages are claimed (and marked sent) in
+// the database. Subscriptions the push service says are gone are removed.
+// The inbox in the app works without this.
 import { corsHeaders, json } from '../_shared/ai.ts';
-import type { PushMessage } from '../weekly-report/handler.ts';
+
+export type PushMessage = {
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  title: string;
+  body: string;
+  tag: string;
+  data: Record<string, unknown>;
+};
+
+export type Delivery = 'ok' | 'gone' | 'error';
 
 export type Deps = {
   rpc<T = unknown>(fn: string, args: Record<string, unknown>): Promise<T>;
-  /** Expo push; returns the tokens Expo says are no longer valid. */
-  sendPush(messages: PushMessage[]): Promise<string[]>;
-  deletePushTokens(tokens: string[]): Promise<void>;
+  /** Encrypts and sends one message (RFC 8291) with the VAPID key. */
+  deliver(
+    subscription: { endpoint: string; p256dh: string; auth: string },
+    payload: string,
+    options: { ttl: number; urgency: 'normal' | 'high' },
+  ): Promise<Delivery>;
 };
+
+/** Sent at the same time, at most. */
+export const PARALLEL = 20;
+
+/** What the service worker shows (see scripts/sw.template.js). */
+export function payloadFor(m: PushMessage): string {
+  return JSON.stringify({ title: m.title, body: m.body, tag: m.tag, data: m.data ?? {} });
+}
+
+/** Rest timer: urgent, useless after 2 minutes. Inbox entries: within a day. */
+export function optionsFor(m: PushMessage): { ttl: number; urgency: 'normal' | 'high' } {
+  return m.tag.startsWith('rest')
+    ? { ttl: 120, urgency: 'high' }
+    : { ttl: 86400, urgency: 'normal' };
+}
 
 export async function handle(req: Request, deps: Deps): Promise<Response> {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -25,11 +55,24 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
   } catch {
     return json({ error: 'forbidden', message: 'Invalid run.' }, 403);
   }
-  let invalid: string[] = [];
-  // Expo takes up to 100 messages per request.
-  for (let i = 0; i < messages.length; i += 100) {
-    invalid = invalid.concat(await deps.sendPush(messages.slice(i, i + 100)));
+  const results: Delivery[] = [];
+  for (let i = 0; i < messages.length; i += PARALLEL) {
+    const batch = messages.slice(i, i + PARALLEL);
+    results.push(
+      ...(await Promise.all(
+        batch.map((m) =>
+          deps.deliver(m, payloadFor(m), optionsFor(m)).catch((): Delivery => 'error'),
+        ),
+      )),
+    );
   }
-  if (invalid.length) await deps.deletePushTokens(invalid);
-  return json({ sent: messages.length, removed_tokens: invalid.length });
+  const gone = [
+    ...new Set(messages.filter((_, i) => results[i] === 'gone').map((m) => m.endpoint)),
+  ];
+  if (gone.length) await deps.rpc('push_forget', { p_endpoints: gone }).catch(() => {});
+  return json({
+    sent: results.filter((r) => r === 'ok').length,
+    failed: results.filter((r) => r === 'error').length,
+    removed: gone.length,
+  });
 }

@@ -31,6 +31,14 @@ describe('workoutFromTemplate', () => {
     expect(workoutFromTemplate(template, 'kg').exercises[1]!.restSeconds).toBe(60);
   });
 
+  it('rest: the default rest from Settings comes before the exercise default', () => {
+    const withDefault = workoutFromTemplate(template, 'kg', {}, new Date(), 150);
+    expect(withDefault.exercises.map((e) => e.restSeconds)).toEqual([180, 150]);
+    expect(
+      workoutFromTemplate(template, 'kg', { plank: 30 }, new Date(), 150).exercises[1]!.restSeconds,
+    ).toBe(30);
+  });
+
   it('is saved with its template id', () => {
     expect(toSavePayload(w).p_workout).toMatchObject({ template_id: 't1' });
   });

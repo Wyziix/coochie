@@ -38,8 +38,11 @@ export async function startTemplateWorkout(
   template: Template,
   units: WeightUnit,
   restSettings?: Record<string, number>,
+  defaultRest: number | null = null,
 ) {
   if (!(await okToReplaceActive())) return;
-  useWorkoutStore.getState().load(workoutFromTemplate(template, units, restSettings));
+  useWorkoutStore
+    .getState()
+    .load(workoutFromTemplate(template, units, restSettings, new Date(), defaultRest));
   open();
 }

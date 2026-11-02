@@ -8,6 +8,8 @@ export const env = {
   supabasePublishableKey: process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '',
   googleWebClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? '',
   googleIosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? '',
+  /** Web push application server key (public half of the VAPID pair). */
+  vapidPublicKey: process.env.EXPO_PUBLIC_VAPID_PUBLIC_KEY ?? '',
 } as const;
 
 export const isSupabaseConfigured = Boolean(env.supabaseUrl && env.supabasePublishableKey);

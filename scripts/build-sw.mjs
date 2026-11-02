@@ -18,7 +18,8 @@ function walk(dir) {
 
 const files = walk(dist)
   .map((path) => '/' + relative(dist, path).split('\\').join('/'))
-  .filter((url) => !SKIP.has(url.slice(1)) && !url.endsWith('.map'))
+  // iPhone launch screens are fetched by iOS itself, only when installing.
+  .filter((url) => !SKIP.has(url.slice(1)) && !url.endsWith('.map') && !url.startsWith('/splash/'))
   .sort();
 
 const hash = createHash('sha256');

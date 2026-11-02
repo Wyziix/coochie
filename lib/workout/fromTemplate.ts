@@ -19,14 +19,15 @@ const blankSet = (): ActiveSet => ({
 
 /**
  * A new workout from a template: its exercises in order, the target number
- * of (empty) sets, targets shown as hints. Rest: template → user's setting →
- * exercise default. Hidden exercises are kept (the template still works).
+ * of (empty) sets, targets shown as hints. Rest: template → user's setting for
+ * the exercise → user's default rest (Settings) → exercise default. Hidden exercises are kept (the template still works).
  */
 export function workoutFromTemplate(
   template: Template,
   units: WeightUnit,
   restSettings: Record<string, number> = {},
   now = new Date(),
+  defaultRest: number | null = null,
 ): ActiveWorkout {
   return {
     id: newId(),
@@ -40,7 +41,10 @@ export function workoutFromTemplate(
       name: te.exercise.name,
       type: te.exercise.type,
       restSeconds:
-        te.rest_seconds ?? restSettings[te.exercise_id] ?? te.exercise.default_rest_seconds,
+        te.rest_seconds ??
+        restSettings[te.exercise_id] ??
+        defaultRest ??
+        te.exercise.default_rest_seconds,
       sets: Array.from({ length: te.target_sets }, blankSet),
       target: {
         sets: te.target_sets,

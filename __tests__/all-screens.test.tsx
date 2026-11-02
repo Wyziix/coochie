@@ -101,6 +101,9 @@ const signedInRoutes = [
   '/nutrition/week',
   '/nutrition/targets',
   '/admin/foods',
+  '/settings',
+  '/delete-account',
+  '/photos/export',
 ];
 
 describe('every screen renders', () => {

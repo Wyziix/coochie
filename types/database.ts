@@ -20,6 +20,7 @@ export type Database = {
           height_cm: number | null;
           onboarding_completed_at: string | null;
           leaderboard_hidden: boolean;
+          default_rest_seconds: number | null;
           role: Database['public']['Enums']['app_role'];
           created_at: string;
           updated_at: string;
@@ -37,6 +38,7 @@ export type Database = {
           height_cm?: number | null;
           onboarding_completed_at?: string | null;
           leaderboard_hidden?: boolean;
+          default_rest_seconds?: number | null;
           role?: Database['public']['Enums']['app_role'];
           created_at?: string;
           updated_at?: string;
@@ -54,6 +56,7 @@ export type Database = {
           height_cm?: number | null;
           onboarding_completed_at?: string | null;
           leaderboard_hidden?: boolean;
+          default_rest_seconds?: number | null;
           role?: Database['public']['Enums']['app_role'];
           created_at?: string;
           updated_at?: string;
@@ -489,6 +492,21 @@ export type Database = {
       ai_mark_seen: { Args: { p_id: string }; Returns: undefined };
       save_push_token: { Args: { p_token: string; p_platform?: string }; Returns: undefined };
       delete_push_token: { Args: { p_token: string }; Returns: undefined };
+      save_web_push: {
+        Args: {
+          p_endpoint: string;
+          p_p256dh: string;
+          p_auth: string;
+          p_user_agent?: string | null;
+        };
+        Returns: undefined;
+      };
+      delete_web_push: { Args: { p_endpoint: string }; Returns: undefined };
+      schedule_push: {
+        Args: { p_tag: string; p_seconds: number; p_title: string; p_body: string };
+        Returns: boolean;
+      };
+      cancel_push: { Args: { p_tag: string }; Returns: undefined };
       admin_ai_settings: { Args: Record<string, never>; Returns: Json };
       admin_update_ai_settings: { Args: { p_changes: Json }; Returns: Json };
       admin_set_ai_override: {

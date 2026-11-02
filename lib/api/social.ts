@@ -209,7 +209,8 @@ export type NotificationType =
   | 'pr_beaten'
   | 'challenge_invite'
   | 'challenge_ending'
-  | 'streak_risk';
+  | 'streak_risk'
+  | 'weekly_report';
 
 export type AppNotification = {
   id: number;
@@ -241,7 +242,8 @@ export type PrivacySettings = {
   activity_visibility: 'friends' | 'nobody';
   pr_show_weight: boolean;
 };
-export type NotificationSettings = Record<NotificationType, boolean>;
+/** Per type, plus the rest timer push (never in the inbox). */
+export type NotificationSettings = Record<NotificationType | 'rest_timer', boolean>;
 
 export const defaultPrivacy: PrivacySettings = {
   activity_visibility: 'friends',
@@ -254,6 +256,8 @@ export const defaultNotificationSettings: NotificationSettings = {
   challenge_invite: true,
   challenge_ending: true,
   streak_risk: true,
+  weekly_report: true,
+  rest_timer: true,
 };
 
 async function ownRow<T>(table: string, columns: string, fallback: T): Promise<T> {
@@ -284,7 +288,7 @@ export const savePrivacySettings = (userId: string, values: PrivacySettings) =>
 export const fetchNotificationSettings = () =>
   ownRow<NotificationSettings>(
     'notification_settings',
-    'friend_request, friend_accepted, pr_beaten, challenge_invite, challenge_ending, streak_risk',
+    'friend_request, friend_accepted, pr_beaten, challenge_invite, challenge_ending, streak_risk, weekly_report, rest_timer',
     defaultNotificationSettings,
   );
 export const saveNotificationSettings = (userId: string, values: NotificationSettings) =>

@@ -1,8 +1,8 @@
-// deno test supabase/functions. Claude and Expo push are faked.
+// deno test supabase/functions. Claude is faked.
 import { assertEquals } from 'jsr:@std/assert@1';
 
 import type { ClaudeResponse } from '../_shared/ai.ts';
-import { type Deps, handle, type PushMessage } from './handler.ts';
+import { type Deps, handle } from './handler.ts';
 
 const report = {
   summary: 'You trained 3 times this week, as planned, and volume rose 8%.',
@@ -25,8 +25,7 @@ function setup(opts: { users?: string[]; budgetAfter?: number; enabled?: boolean
     claimed: false,
     reserved: 0,
     saved: [] as Record<string, unknown>[],
-    pushes: [] as PushMessage[],
-    deleted: [] as string[],
+    notices: [] as Record<string, unknown>[],
     claudeCalls: 0,
     finishedRun: null as unknown,
     reserves: [] as Record<string, unknown>[],
@@ -78,6 +77,9 @@ function setup(opts: { users?: string[]; budgetAfter?: number; enabled?: boolean
           state.saved.push({ ...args });
           return row as T;
         }
+        case 'ai_notify_weekly_report':
+          state.notices.push(args);
+          return null as T;
         case 'ai_finish_weekly_run':
           state.finishedRun = args.p_result;
           return null as T;
@@ -89,19 +91,6 @@ function setup(opts: { users?: string[]; budgetAfter?: number; enabled?: boolean
       state.claudeCalls++;
       if (req.maxTokens !== 700) throw new Error('weekly reports get 700 tokens');
       return answer(report);
-    },
-    // deno-lint-ignore require-await
-    async pushTokens(userId) {
-      return userId === 'u1' ? ['ExponentPushToken[ok]', 'ExponentPushToken[gone]'] : [];
-    },
-    // deno-lint-ignore require-await
-    async sendPush(messages) {
-      state.pushes.push(...messages);
-      return messages.filter((m) => m.to.includes('gone')).map((m) => m.to);
-    },
-    // deno-lint-ignore require-await
-    async deletePushTokens(tokens) {
-      state.deleted.push(...tokens);
     },
   };
   return { deps, state };
@@ -120,7 +109,7 @@ const adminTest = (auth: string) =>
   });
 
 Deno.test(
-  'Monday run: a report for everyone who trained, push to Android, without using daily calls',
+  'Monday run: a report for everyone who trained, an inbox notice each, without using daily calls',
   async () => {
     const { deps, state } = setup();
     const res = await handle(cron(), deps);
@@ -144,10 +133,10 @@ Deno.test(
       state.reserves.every((r) => r.p_counts === false && r.p_function === 'weekly_report'),
       true,
     );
-    assertEquals(state.pushes.length, 2);
-    assertEquals(state.pushes[0]!.title, 'Your weekly report is ready');
-    assertEquals(state.pushes[0]!.data, { url: '/reports/rep-u1' });
-    assertEquals(state.deleted, ['ExponentPushToken[gone]']);
+    assertEquals(state.notices.length, 3);
+    assertEquals(state.notices[0]!.p_user, 'u1');
+    assertEquals(state.notices[0]!.p_report, 'rep-u1');
+    assertEquals(state.notices[0]!.p_summary, report.summary);
   },
 );
 

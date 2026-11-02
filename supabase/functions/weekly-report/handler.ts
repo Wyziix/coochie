@@ -23,22 +23,11 @@ export type ReportRow = {
   week_start: string;
   created_at: string;
 };
-export type PushMessage = {
-  to: string;
-  title: string;
-  body: string;
-  data: Record<string, unknown>;
-};
-
 export type Deps = {
   userIdFromAuth(authorization: string): Promise<string | null>;
   isAdmin(authorization: string): Promise<boolean>;
   rpc<T = unknown>(fn: string, args: Record<string, unknown>): Promise<T>;
   claude: Claude;
-  pushTokens(userId: string): Promise<string[]>;
-  /** Expo push; returns the tokens Expo says are no longer valid. */
-  sendPush(messages: PushMessage[]): Promise<string[]>;
-  deletePushTokens(tokens: string[]): Promise<void>;
 };
 
 type Reservation =
@@ -178,19 +167,13 @@ async function reportFor(deps: Deps, userId: string, week: string): Promise<Outc
   }
 }
 
+/** Inbox notice (and web push on the user's devices, through send-push). */
 async function notify(deps: Deps, userId: string, report: ReportRow) {
-  const tokens = await deps.pushTokens(userId);
-  if (tokens.length === 0) return;
-  const summary = String(report.content.summary ?? '');
-  const invalid = await deps.sendPush(
-    tokens.map((to) => ({
-      to,
-      title: 'Your weekly report is ready',
-      body: summary.length > 110 ? `${summary.slice(0, 107)}…` : summary,
-      data: { url: `/reports/${report.id}` },
-    })),
-  );
-  if (invalid.length) await deps.deletePushTokens(invalid);
+  await deps.rpc('ai_notify_weekly_report', {
+    p_user: userId,
+    p_report: report.id,
+    p_summary: String(report.content.summary ?? ''),
+  });
 }
 
 function finish(

@@ -8,7 +8,13 @@ export type DescribedError = {
   detail: string | null;
 };
 
-type ErrorLike = { code?: unknown; message?: unknown; status?: unknown; details?: unknown };
+type ErrorLike = {
+  code?: unknown;
+  message?: unknown;
+  status?: unknown;
+  details?: unknown;
+  name?: unknown;
+};
 
 const NETWORK_PATTERNS =
   /failed to fetch|network request failed|networkerror|load failed|fetch failed|timed? ?out/i;
@@ -36,6 +42,16 @@ export function describeError(error: unknown): DescribedError {
       kind: 'offline',
       title: 'No connection',
       message: 'Couldn’t reach the server. Check your internet connection and try again.',
+      detail,
+    };
+  }
+
+  // Our Edge Functions send a message meant for the user: show it as is.
+  if (e.name === 'FunctionError' && message) {
+    return {
+      kind: status !== null && status >= 500 ? 'server' : 'unknown',
+      title: 'Couldn’t finish',
+      message,
       detail,
     };
   }

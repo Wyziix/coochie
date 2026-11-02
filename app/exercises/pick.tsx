@@ -7,6 +7,7 @@ import { ExerciseBrowser } from '@/components/exercises/ExerciseBrowser';
 import { ExerciseRow } from '@/components/exercises/ExerciseRow';
 import { Button } from '@/components/ui';
 import { useExercises, useRecentExerciseIds, useRestSettings } from '@/hooks/useExercises';
+import { useProfile } from '@/hooks/useProfile';
 import { useTheme } from '@/hooks/useTheme';
 import { useTemplateDraftStore } from '@/stores/templateDraftStore';
 import { useEditWorkoutStore, useWorkoutStore } from '@/stores/workoutStore';
@@ -21,6 +22,7 @@ export default function PickExercisesScreen() {
   const insets = useSafeAreaInsets();
   const { data: exercises } = useExercises();
   const { data: restSettings } = useRestSettings();
+  const defaultRest = useProfile().data?.default_rest_seconds ?? null;
   const { data: recentIds } = useRecentExerciseIds();
   const { target = 'workout' } = useLocalSearchParams<{
     target?: 'workout' | 'edit' | 'template';
@@ -38,7 +40,9 @@ export default function PickExercisesScreen() {
       useTemplateDraftStore.getState().addExercises(chosen);
     } else {
       const store = target === 'edit' ? useEditWorkoutStore : useWorkoutStore;
-      store.getState().addExercises(chosen, (e) => restSettings?.[e.id] ?? e.default_rest_seconds);
+      store
+        .getState()
+        .addExercises(chosen, (e) => restSettings?.[e.id] ?? defaultRest ?? e.default_rest_seconds);
     }
     router.back();
   }

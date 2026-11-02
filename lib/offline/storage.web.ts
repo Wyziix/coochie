@@ -74,4 +74,24 @@ export const offlineStorage: OfflineStorage = {
       // nothing stored
     }
   },
+  async clear() {
+    memory.clear();
+    try {
+      await run('readwrite', (s) => s.clear());
+    } catch {
+      // nothing stored
+    }
+    // Close the connection so the whole database can be deleted.
+    const open = await db?.catch(() => null);
+    open?.close();
+    db = null;
+    await new Promise<void>((resolve) => {
+      try {
+        const req = indexedDB.deleteDatabase(DB_NAME);
+        req.onsuccess = req.onerror = req.onblocked = () => resolve();
+      } catch {
+        resolve();
+      }
+    });
+  },
 };

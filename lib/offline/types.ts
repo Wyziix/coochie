@@ -7,4 +7,6 @@ export type OfflineStorage = {
   getItem(key: string): Promise<string | null>;
   setItem(key: string, value: string): Promise<void>;
   removeItem(key: string): Promise<void>;
+  /** Deletes everything (after deleting the account). */
+  clear(): Promise<void>;
 };

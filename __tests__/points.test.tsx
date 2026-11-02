@@ -196,9 +196,9 @@ describe('workout points', () => {
 });
 
 describe('profile privacy', () => {
-  it('"Hide me from public leaderboards" saves to the profile', async () => {
+  it('"Hide me from public leaderboards" (Settings) saves to the profile', async () => {
     start();
-    await renderRouter(appDir, { initialUrl: '/profile' });
+    await renderRouter(appDir, { initialUrl: '/settings' });
     await fireEvent(
       await screen.findByLabelText('Hide me from public leaderboards'),
       'valueChange',

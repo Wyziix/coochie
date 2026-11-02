@@ -19,7 +19,8 @@ export default function TemplateDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data: template, isPending, error, refetch } = useTemplate(id);
   const userId = useUserId();
-  const units = useProfile().data?.units ?? 'kg';
+  const profile = useProfile().data;
+  const units = profile?.units ?? 'kg';
   const { data: restSettings } = useRestSettings();
   const remove = useDeleteTemplate();
 
@@ -62,7 +63,9 @@ export default function TemplateDetailScreen() {
 
       <Button
         title="Start workout"
-        onPress={() => startTemplateWorkout(template, units, restSettings)}
+        onPress={() =>
+          startTemplateWorkout(template, units, restSettings, profile?.default_rest_seconds ?? null)
+        }
         fullWidth
       />
 
