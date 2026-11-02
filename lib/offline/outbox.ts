@@ -16,7 +16,12 @@ export type OutboxKind =
   | 'save_template'
   | 'delete_template'
   | 'save_exercise'
-  | 'save_rest';
+  | 'save_rest'
+  | 'save_food_log'
+  | 'delete_food_log'
+  | 'save_water'
+  | 'delete_water'
+  | 'set_favorite';
 
 export type OutboxItem = {
   id: string;
@@ -89,6 +94,8 @@ function setItems(update: (items: OutboxItem[]) => OutboxItem[]) {
 const saveKindFor: Partial<Record<OutboxKind, OutboxKind>> = {
   delete_workout: 'save_workout',
   delete_template: 'save_template',
+  delete_food_log: 'save_food_log',
+  delete_water: 'save_water',
 };
 
 /**

@@ -16,6 +16,9 @@ import {
   type ChatMessage,
   type Reservation,
   type Usage,
+  addDays,
+  madridDay,
+  withNutrition,
 } from '../_shared/ai.ts';
 import { COACH_PROMPT, conversation, dataBlock, HISTORY, MAX_MESSAGE } from './prompt.ts';
 
@@ -146,8 +149,11 @@ async function reply(
 ): Promise<Outcome> {
   let usage: Usage | undefined;
   try {
+    const today = madridDay(0, deps.now?.());
     const [context, history] = await Promise.all([
-      deps.rpc<unknown>('ai_coach_context', { p_user: userId }),
+      deps
+        .rpc<unknown>('ai_coach_context', { p_user: userId })
+        .then((c) => withNutrition(deps.rpc, userId, addDays(today, -6), today, c)),
       deps.history(userId, HISTORY),
     ]);
     const res = await deps.claudeStream({

@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import { NutritionCard } from '@/components/nutrition/NutritionCard';
 import { Button, Card, EmptyState, ErrorState, Header, Screen, Text } from '@/components/ui';
 import { useMeasurements } from '@/hooks/useBody';
 import { useUnseenReports } from '@/hooks/useAi';
@@ -108,6 +109,8 @@ export default function ProgressScreen() {
           ) : null}
         </View>
       </Card>
+
+      <NutritionCard />
 
       <Card onPress={() => router.push('/coach')} accessibilityLabel="Ask the coach">
         <View style={styles.row}>

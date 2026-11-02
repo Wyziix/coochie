@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 
 import { NewReportBanner } from '@/components/ai/NewReportBanner';
 import { WeeklyOverview } from '@/components/home/WeeklyOverview';
+import { NutritionCard } from '@/components/nutrition/NutritionCard';
 import { LevelCard } from '@/components/points/LevelCard';
 import { StreakCard } from '@/components/social/StreakCard';
 import { Button, Header, Screen } from '@/components/ui';
@@ -19,6 +20,7 @@ export default function HomeScreen() {
       <NewReportBanner />
       <LevelCard />
       <StreakCard />
+      <NutritionCard />
       <WeeklyOverview />
       <Button title="Start a workout" onPress={() => router.push('/workout')} fullWidth />
       <Button

@@ -27,7 +27,7 @@ App name: **LightweightBaby** · bundle ID / package `com.lightweightbaby.app` �
 | 7     | AI plan generator and coach chat     | Done   |
 | 8     | Points and ranking                   | Done   |
 | 9     | Social                               | Done   |
-| 10    | Nutrition                            | –      |
+| 10    | Nutrition                            | Done   |
 | 11    | Health sync, export, settings        | –      |
 | 12    | Premium subscription                 | –      |
 | 13    | Polish and release                   | –      |
@@ -443,6 +443,35 @@ Checks: typecheck, lint, prettier, 318 Jest tests, 49 Edge Function tests, DB te
 - Android push needs the FCM setup (docs/SETUP.md section 11); until then the inbox covers it
 - Re-running the Stage 8 migration after this one would put back the old points rebuild, which drops challenge rewards on the next workout (re-run only the file that failed)
 - Changing point values in Admin → Points updates level badges on each user's next workout
+
+## Stage 10 – Nutrition tracking
+
+Built:
+
+- **Food data**: Open Food Facts through the new `food-search` Edge Function, never straight from the app. It sends the User-Agent Open Food Facts asks for (`LightweightBaby/1.0 (contact)`, contact = `OFF_CONTACT` secret or the site URL), looks in our `foods` table first (cached products and the user's own foods), caches what it gets (refreshed after 30 days), and is rate-limited per user (barcodes 60/hour and 300/day, text searches 30/hour and 200/day). Values per 100 g and per serving; portions picked in grams or servings
+- **Barcodes**: Android uses expo-camera's scanner (EAN-13/8, UPC-A/E). The iPhone web app (Safari has no BarcodeDetector) uses **ZXing (`@zxing/browser` + `@zxing/library`)** on the camera video, loaded only when the scanner opens, with manual barcode entry under it. Not found (or hidden by an admin) → create the food yourself, saved only for you with that barcode, so scanning it next time finds it
+- **Logging**: breakfast, lunch, dinner, snacks; search, recent foods, favourites, quick add (calories plus optional macros), "copy yesterday's meal". Values with a food are recomputed on the server. Water with +250 / +500 ml, undo, and a daily goal
+- **Offline**: food logs, quick adds, water and favourites go through the existing sync queue (last write wins, tombstones, retries can't duplicate); the day view, recent foods, favourites and foods already used work from the saved copy. Searching and barcode lookups show "Needs connection"
+- **Targets**: calories, protein, carbs, fat and water, typed by hand or suggested with **Mifflin-St Jeor** (BMR = 10 × kg + 6.25 × cm − 5 × age + 5 for men / − 161 for women, × activity 1.2–1.9, then −20% fat loss, +10% muscle, +5% strength, 0 general; protein 1.6–2.2 g/kg by goal, fat 25% of calories (min 0.6 g/kg), carbs the rest, water 35 ml/kg). The steps are shown and saved; always editable. Bodyweight and height follow the profile unit (kg/cm or lbs/in); energy in kcal
+- **Views**: day view with progress rings (calories, protein, carbs, fat) and kcal left; weekly view with averages over the days with food logged and each day vs target; "Nutrition today" card on Home and Progress
+- **Privacy**: every nutrition table is owner-only (RLS); logs go only through server functions. Nothing is used by the feed, leaderboards, challenges or friend profiles; admins never see users' own foods or logs
+- **AI**: the coach gets a small summary (7-day average calories and protein vs targets, days logged), the weekly report gets the same for its week, only when food was logged then
+- **Admin → Foods**: cached Open Food Facts foods only: fix values or hide wrong ones (hidden ones disappear from search and lookups and aren't overwritten by the next lookup); logged
+- Wording: AI wait and error texts say Gleb, not Claude (plan generator, Workout tab, admin, function error messages)
+
+Checks: typecheck, lint, prettier, 340 Jest tests (portion maths, Mifflin-St Jeor numbers, rings, water, search → servings → log, quick add, copy yesterday, favourites, camera scan, barcode not found → own food, offline quick add queued then synced, search and barcode "Needs connection" offline, targets suggested and saved, week averages, Home card, admin fix/hide), 62 Edge Function tests (Open Food Facts mocked: User-Agent, cache hit with no call, own food first, stale refresh and fallback, not found / no nutrition / hidden, OFF down, rate limit before calling OFF, search merge, kJ → kcal; nutrition summary in coach and weekly report only when food was logged), DB tests (RLS on every nutrition table, cache upsert and validation, own foods private, server-side values, quick add, re-sync without duplicates, older change loses, delete wins over late re-sync, water, favourites, targets, nothing in feed/activity/points, admin cached-only review, hidden not overwritten, rate limit, AI summary). Browser test of the production build at 390 px and 1440 px with Chromium's fake camera showing a real EAN-13: decoded by ZXing, looked up, portion, logged; blocked camera → message and manual entry; not found → own food; offline quick add synced; targets, week, admin foods.
+
+### Decisions
+
+- Logs store a snapshot of name and values, so editing or hiding a food later doesn't change past days
+- The day is the phone's local date (what "today" means to the user); weekly reports use Madrid weeks
+- Favourites are only foods (quick adds can be repeated with "copy yesterday's meal")
+
+### Known issues / to check
+
+- ZXing on the iPhone home-screen app is tested only in Chromium with a fake camera here; please do the real check in the report
+- Open Food Facts data quality varies; wrong products can be fixed or hidden in Admin → Foods
+- Creating your own food and saving targets need a connection
 
 ## Planned for Stage 13 (polish)
 

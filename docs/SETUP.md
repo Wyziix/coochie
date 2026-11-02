@@ -205,6 +205,20 @@ join public.profiles p on p.id = ub.user_id where p.username = 'gleb';
 2. Deploy the functions (adds `send-push`): `npm run deploy:functions`.
 3. Redeploy the web app: `npm run deploy:web` (also fixes the missing icons).
 
+### Stage 10 migration (nutrition)
+
+1. Run `20261114000000_nutrition.sql` (safe to run twice). It adds `foods`, `food_logs`, `water_logs`, `food_favorites`, `nutrition_targets` (all with RLS), the sync functions, the Open Food Facts cache functions, the AI summary and Admin → Foods.
+
+```sql
+select tablename, rowsecurity from pg_tables
+where tablename in ('foods', 'food_logs', 'water_logs', 'food_favorites', 'nutrition_targets');  -- all true
+select pg_get_constraintdef(oid) from pg_constraint where conname = 'sync_tombstones_entity';  -- includes food_log, water_log
+```
+
+2. Optional: `supabase secrets set OFF_CONTACT=you@example.com` (goes into the User-Agent Open Food Facts asks apps to send; without it the site URL is used).
+3. Deploy the functions (adds `food-search`; `coach` and `weekly-report` now include the nutrition summary): `npm run deploy:functions`.
+4. Redeploy the web app: `npm run deploy:web`. For Android, the camera permission needs a new build (`expo-camera` plugin in `app.json`).
+
 ## 6. Enable the custom access token hook
 
 This puts `user_role` (`user` / `admin`) into every login token.
@@ -380,3 +394,10 @@ Apply new migrations first (and `npm run deploy:functions` if `supabase/function
 - **Notifications** are in the in-app inbox (Social → Inbox). Android also gets push once FCM is set up (section 11); `social-tick` sends them every 5 minutes through the `send-push` function.
 - **Challenges end** at midnight Europe/Madrid after the end date; results come from the next `social-tick` (or when someone opens the challenge).
 - **Icons missing on the live site?** Deploy with `npm run deploy:web` (it runs `scripts/fix-web-assets.mjs`); Cloudflare Pages doesn't upload `node_modules` folders.
+
+## 15. Nutrition
+
+- **Open Food Facts** is called only by the `food-search` function (User-Agent `LightweightBaby/1.0 (OFF_CONTACT or site URL)`), cached in `foods`, rate-limited per user (barcodes 60/hour, searches 30/hour).
+- **Barcode scanner**: Android = expo-camera (needs a build with the camera permission). iPhone home-screen app = ZXing in the browser; Safari asks for camera access the first time. If it was denied: iPhone Settings → Safari → Camera → Allow (or remove and re-add the home-screen app). Manual barcode entry always works.
+- **Admin → Foods** fixes or hides wrong cached foods. Users' own foods and logs are private.
+- **Node 24** is required to install `@zxing/library` (the project already pins Node 24 in `.nvmrc`).

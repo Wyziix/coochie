@@ -134,7 +134,7 @@ export default function WorkoutScreen() {
           ))
         ) : templates.isPending ? null : (
           <Text color="textMuted">
-            Let Claude build a multi-week plan from your goal, schedule and equipment.
+            Let Gleb build a multi-week plan from your goal, schedule and equipment.
           </Text>
         )}
         {deleteProgram.error ? (

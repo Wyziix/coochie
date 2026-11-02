@@ -13,6 +13,8 @@ import {
   json,
   refusal,
   type Usage,
+  addDays,
+  withNutrition,
 } from '../_shared/ai.ts';
 
 export type ReportRow = {
@@ -133,10 +135,9 @@ async function reportFor(deps: Deps, userId: string, week: string): Promise<Outc
   let usage: Usage | undefined;
   let attempts = 1;
   try {
-    const context = await deps.rpc<unknown>('ai_week_context', {
-      p_user: userId,
-      p_week_start: week,
-    });
+    const context = await deps
+      .rpc<unknown>('ai_week_context', { p_user: userId, p_week_start: week })
+      .then((c) => withNutrition(deps.rpc, userId, week, addDays(week, 6), c));
     if (!context) {
       await finish(deps, r.id, 'error', undefined, 0, 'no workouts that week');
       return { kind: 'no_data' };
@@ -171,8 +172,8 @@ async function reportFor(deps: Deps, userId: string, week: string): Promise<Outc
     return {
       kind: 'error',
       message: isTimeout(error)
-        ? 'Claude took too long to answer.'
-        : 'Claude couldn’t answer right now.',
+        ? 'Gleb took too long to answer.'
+        : 'Gleb couldn’t answer right now.',
     };
   }
 }
@@ -210,10 +211,4 @@ function finish(
     p_attempts: attempts,
     p_error: error ?? null,
   });
-}
-
-function addDays(isoDate: string, days: number) {
-  const d = new Date(`${isoDate}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
 }

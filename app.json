@@ -68,6 +68,15 @@
         {
           "faceIDPermission": "LightweightBaby uses Face ID to unlock your progress photos."
         }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Scan food barcodes to log what you eat.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false,
+          "barcodeScannerEnabled": true
+        }
       ]
     ],
     "experiments": {

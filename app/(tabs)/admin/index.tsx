@@ -52,6 +52,12 @@ const sections: Section[] = [
     href: '/admin/points',
   },
   {
+    title: 'Foods',
+    description: 'Fix or hide wrong foods from Open Food Facts',
+    icon: 'nutrition-outline',
+    href: '/admin/foods',
+  },
+  {
     title: 'Reports',
     description: 'Reported users: dismiss, hide from leaderboards or ban',
     icon: 'flag-outline',

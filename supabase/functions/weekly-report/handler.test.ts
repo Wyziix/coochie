@@ -184,3 +184,26 @@ Deno.test('admin "Generate now": the admin’s current week; others are refused'
   assertEquals((await res.json()).report.week_start, '2026-10-26');
   assertEquals(state.saved[0]!.p_user, 'admin');
 });
+
+Deno.test('nutrition for that week goes into the report data when food was logged', async () => {
+  const { deps } = setup({ users: ['u1'] });
+  const rpc = deps.rpc;
+  const asked: Record<string, unknown>[] = [];
+  let sent = '';
+  deps.rpc = <T>(fn: string, args: Record<string, unknown>) => {
+    if (fn !== 'ai_nutrition_summary') return rpc<T>(fn, args);
+    asked.push(args);
+    return Promise.resolve({ days_logged: 4, avg_kcal: 2100, avg_protein_g: 120 } as T);
+  };
+  const claude = deps.claude;
+  deps.claude = (req) => {
+    sent = req.user;
+    return claude(req);
+  };
+  await handle(cron(), deps);
+  assertEquals(asked[0], { p_user: 'u1', p_from: '2026-10-19', p_to: '2026-10-25' });
+  assertEquals(
+    sent.includes('"nutrition":{"days_logged":4,"avg_kcal":2100,"avg_protein_g":120}'),
+    true,
+  );
+});

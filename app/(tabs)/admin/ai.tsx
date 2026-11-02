@@ -388,7 +388,7 @@ function GenerateNow() {
     <Card>
       <Text variant="heading">Test the weekly report</Text>
       <Text variant="caption" color="textMuted">
-        Writes your own report for this week now (one real Claude call). The Monday job does the
+        Gleb writes your own report for this week now (one real AI call). The Monday job does the
         same for everyone who trained last week.
       </Text>
       <Button

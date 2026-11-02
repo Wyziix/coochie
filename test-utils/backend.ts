@@ -86,6 +86,7 @@ export function resetBackend({
   resetAi();
   resetPoints();
   resetSocial();
+  resetNutrition();
   // Fresh device: no offline data, nothing queued, online.
   jest.requireMock('@/lib/offline/storage').__memory.clear();
   useOutboxStore.setState({ userId: null, items: [], loaded: false, sending: [] });
@@ -1603,4 +1604,137 @@ export const socialMock = {
     return null;
   }),
   setUserBanned: jest.fn(async () => null),
+};
+
+// --- Stage 10: nutrition (server faked; state in nutritionState) ---------------
+export const sampleFoods = {
+  nutella: {
+    id: 'food-nutella',
+    source: 'off',
+    barcode: '3017620422003',
+    name: 'Nutella',
+    brand: 'Ferrero',
+    kcal_100g: 539,
+    protein_100g: 6.3,
+    carbs_100g: 57.5,
+    fat_100g: 30.9,
+    serving_g: 15,
+    serving_label: '15 g',
+    owner_id: null,
+  },
+  yogurt: {
+    id: 'food-yogurt',
+    source: 'off',
+    barcode: '4000000000002',
+    name: 'Greek yogurt',
+    brand: null,
+    kcal_100g: 97,
+    protein_100g: 9,
+    carbs_100g: 3.6,
+    fat_100g: 5,
+    serving_g: null,
+    serving_label: null,
+    owner_id: null,
+  },
+};
+
+export const nutritionState = {
+  logs: [] as Record<string, unknown>[],
+  water: [] as Record<string, unknown>[],
+  targets: null as null | Record<string, unknown>,
+  favorites: [] as unknown[],
+  ownFoods: [] as Record<string, unknown>[],
+  adminFoods: [] as Record<string, unknown>[],
+};
+
+export function resetNutrition() {
+  nutritionState.logs = [];
+  nutritionState.water = [];
+  nutritionState.targets = {
+    kcal: 2400,
+    protein_g: 160,
+    carbs_g: 260,
+    fat_g: 80,
+    water_ml: 2500,
+    method: 'manual',
+    details: {},
+  };
+  nutritionState.favorites = [sampleFoods.yogurt];
+  nutritionState.ownFoods = [];
+  nutritionState.adminFoods = [
+    { ...sampleFoods.nutella, is_hidden: false, times_logged: 3, fetched_at: '', updated_at: '' },
+  ];
+}
+resetNutrition();
+
+export const nutritionMock = {
+  ...jest.requireActual('@/lib/api/nutrition'),
+  fetchDay: jest.fn(async (day: string) => ({
+    logs: nutritionState.logs.filter((l) => l.day === day).map((l) => ({ ...l })),
+    water: nutritionState.water.filter((w) => w.day === day).map((w) => ({ ...w })),
+  })),
+  fetchRange: jest.fn(async (from: string, to: string) => ({
+    logs: nutritionState.logs.filter((l) => (l.day as string) >= from && (l.day as string) <= to),
+    water: nutritionState.water.filter((w) => (w.day as string) >= from && (w.day as string) <= to),
+  })),
+  fetchTargets: jest.fn(async () =>
+    nutritionState.targets ? { ...nutritionState.targets } : null,
+  ),
+  saveTargets: jest.fn(
+    async (_u: string, t: Record<string, unknown>) => ((nutritionState.targets = { ...t }), t),
+  ),
+  fetchFavorites: jest.fn(async () => [...nutritionState.favorites]),
+  fetchRecentFoods: jest.fn(async () => [sampleFoods.nutella]),
+  searchFoods: jest.fn(async (q: string) => ({
+    foods: [sampleFoods.nutella, sampleFoods.yogurt, ...nutritionState.ownFoods].filter((f) =>
+      String(f.name).toLowerCase().includes(q.toLowerCase()),
+    ),
+    partial: false,
+  })),
+  lookupBarcode: jest.fn(async (code: string) => {
+    const f = [sampleFoods.nutella, sampleFoods.yogurt, ...nutritionState.ownFoods].find(
+      (x) => x.barcode === code,
+    );
+    return f
+      ? { found: true, food: f, from: 'cache' }
+      : { found: false, barcode: code, reason: 'not_found' };
+  }),
+  saveMyFood: jest.fn(async (food: Record<string, unknown>) => {
+    const row = {
+      ...food,
+      id: `own-${nutritionState.ownFoods.length + 1}`,
+      source: 'user',
+      owner_id: USER_ID,
+    };
+    nutritionState.ownFoods.push(row);
+    return row;
+  }),
+  saveFoodLog: jest.fn(async (log: Record<string, unknown>) => {
+    nutritionState.logs = [...nutritionState.logs.filter((l) => l.id !== log.id), { ...log }];
+    return log;
+  }),
+  deleteFoodLogAt: jest.fn(async (id: string) => {
+    nutritionState.logs = nutritionState.logs.filter((l) => l.id !== id);
+    return null;
+  }),
+  saveWaterLog: jest.fn(async (w: Record<string, unknown>) => {
+    nutritionState.water = [...nutritionState.water.filter((x) => x.id !== w.id), { ...w }];
+    return w;
+  }),
+  deleteWaterLogAt: jest.fn(async (id: string) => {
+    nutritionState.water = nutritionState.water.filter((x) => x.id !== id);
+    return null;
+  }),
+  setFoodFavorite: jest.fn(async () => null),
+  fetchAdminFoods: jest.fn(async () => nutritionState.adminFoods.map((f) => ({ ...f }))),
+  setFoodHidden: jest.fn(async (id: string, hidden: boolean) => {
+    const f = nutritionState.adminFoods.find((x) => x.id === id);
+    if (f) f.is_hidden = hidden;
+    return null;
+  }),
+  updateFood: jest.fn(async (id: string, changes: Record<string, unknown>) => {
+    const f = nutritionState.adminFoods.find((x) => x.id === id)!;
+    Object.assign(f, changes);
+    return { ...f };
+  }),
 };

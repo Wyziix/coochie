@@ -117,12 +117,12 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
     ).catch(() => {});
     if (isTimeout(error)) {
       return json(
-        { error: 'timeout', message: 'Claude took too long to answer. Try again in a minute.' },
+        { error: 'timeout', message: 'Gleb took too long to answer. Try again in a minute.' },
         504,
       );
     }
     return json(
-      { error: 'ai_error', message: 'Claude couldn’t answer right now. Try again in a minute.' },
+      { error: 'ai_error', message: 'Gleb couldn’t answer right now. Try again in a minute.' },
       502,
     );
   }

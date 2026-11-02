@@ -60,3 +60,24 @@ jest.mock('@/lib/platform/push', () => ({
 // the fake (state in test-utils/backend: pointsState).
 jest.mock('@/lib/api/points', () => require('@/test-utils/backend').pointsMock);
 jest.mock('@/lib/api/social', () => require('@/test-utils/backend').socialMock);
+jest.mock('@/lib/api/nutrition', () => require('@/test-utils/backend').nutritionMock);
+// The camera can't run in tests: a stand-in that "scans" when pressed.
+jest.mock('expo-camera', () => {
+  const { Pressable, Text } = require('react-native');
+  return {
+    useCameraPermissions: () => [{ granted: true }, jest.fn()],
+    CameraView: ({
+      onBarcodeScanned,
+    }: {
+      onBarcodeScanned?: (r: { data: string; type: string }) => void;
+    }) => (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Fake camera"
+        onPress={() => onBarcodeScanned?.({ data: '3017620422003', type: 'ean13' })}
+      >
+        <Text>camera</Text>
+      </Pressable>
+    ),
+  };
+});

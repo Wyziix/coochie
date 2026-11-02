@@ -55,7 +55,7 @@ workout_feedback: feedback on the workout just finished.
 - Give one or two concrete suggestions for next time: a weight, rep or set target for a named exercise, or one exercise to add. No vague advice.
 - If there is no previous data for an exercise, say this session is the baseline.
 
-weekly_report: a summary of one training week (Monday to Sunday).
+weekly_report: a summary of one training week (Monday to Sunday). If the data has "nutrition" (average calories and protein on the days food was logged, with the lifter's targets), you may add one short point about it in focus_next_week, without judging food choices.
 - Consistency: sessions done versus "planned_days_per_week", and compared with previous weeks.
 - Volume trend: total volume versus the previous weeks, with numbers.
 - Highlights: personal records and clear e1RM progress from "top_exercises".
@@ -343,3 +343,36 @@ export function json(body: unknown, status = 200): Response {
 
 export const isTimeout = (error: unknown) =>
   error instanceof Error && /timed? ?out|timeout|abort/i.test(`${error.name} ${error.message}`);
+
+/** YYYY-MM-DD in Europe/Madrid, `offsetDays` from `now`. */
+export function madridDay(offsetDays = 0, now = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Madrid' }).format(
+    new Date(now.getTime() + offsetDays * 86_400_000),
+  );
+}
+
+export function addDays(isoDate: string, days: number): string {
+  const d = new Date(`${isoDate}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Adds the small nutrition summary (average kcal and protein vs targets) when
+ * the user logged food in that window; otherwise the context is unchanged.
+ */
+export async function withNutrition(
+  rpc: <T>(fn: string, args: Record<string, unknown>) => Promise<T>,
+  userId: string,
+  from: string,
+  to: string,
+  context: unknown,
+): Promise<unknown> {
+  if (!context || typeof context !== 'object') return context;
+  const nutrition = await rpc<unknown>('ai_nutrition_summary', {
+    p_user: userId,
+    p_from: from,
+    p_to: to,
+  }).catch(() => null);
+  return nutrition ? { ...(context as Record<string, unknown>), nutrition } : context;
+}

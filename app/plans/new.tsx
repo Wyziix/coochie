@@ -58,7 +58,7 @@ export default function NewPlanScreen() {
       contentContainerStyle={{ padding: theme.spacing.lg, gap: theme.spacing.lg }}
     >
       <Text color="textMuted">
-        Pick what you want and Claude builds a plan from the exercise library. You see it before
+        Pick what you want and Gleb builds a plan from the exercise library. You see it before
         anything is saved.
       </Text>
       <View style={{ gap: theme.spacing.sm }}>

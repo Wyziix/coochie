@@ -243,3 +243,33 @@ Deno.test('the coach prompt is long enough to be cached, fixed, and has the safe
   assertMatch(COACH_PROMPT, /see a doctor or physiotherapist/);
   assertMatch(COACH_PROMPT, /can only help with training, recovery and nutrition/);
 });
+
+Deno.test('nutrition: the 7-day summary is added only when food was logged', async () => {
+  const { deps, state } = setup();
+  const rpc = deps.rpc;
+  const asked: Record<string, unknown>[] = [];
+  deps.rpc = <T>(fn: string, args: Record<string, unknown>) => {
+    if (fn !== 'ai_nutrition_summary') return rpc<T>(fn, args);
+    asked.push(args);
+    return Promise.resolve({
+      days_logged: 5,
+      avg_kcal: 2210,
+      avg_protein_g: 128,
+      target_kcal: 2400,
+      target_protein_g: 160,
+    } as T);
+  };
+  await (await handle(post({ message: 'Am I eating enough protein?' }), deps)).text();
+  assertEquals(asked[0], { p_user: USER, p_from: '2026-10-26', p_to: '2026-11-01' });
+  assertMatch(
+    state.calls[0]!.data,
+    /"nutrition":\{"days_logged":5,"avg_kcal":2210,"avg_protein_g":128,"target_kcal":2400,"target_protein_g":160\}/,
+  );
+
+  const plain = setup();
+  await (await handle(post({ message: 'hi' }), plain.deps)).text();
+  assert(
+    !plain.state.calls[0]!.data.includes('nutrition'),
+    'no food logged: no nutrition in the context',
+  );
+});

@@ -1,4 +1,5 @@
 import type { Exercise, ExerciseInput } from '@/lib/api/exercises';
+import type { Food, FoodLog, WaterLog } from '@/lib/api/nutrition';
 import type { Template, TemplatePayload } from '@/lib/api/templates';
 import type { SavePayload, WorkoutDetail, WorkoutSet, WorkoutSummary } from '@/lib/api/workouts';
 
@@ -219,5 +220,53 @@ export function overlayRest(map: Record<string, number> | undefined, items: Outb
   if (pending.length === 0) return map;
   const out = { ...map };
   for (const i of pending) out[i.entityId] = (i.payload as { seconds: number }).seconds;
+  return out;
+}
+
+/** Food logs and water added, changed or deleted offline, for one day (or all days). */
+export function overlayFoodLogs(
+  list: FoodLog[] | undefined,
+  items: OutboxItem[],
+  inRange: (day: string) => boolean,
+): (FoodLog & SyncMark)[] {
+  const map = changes<FoodLog>(items, 'save_food_log', 'delete_food_log');
+  const out: (FoodLog & SyncMark)[] = [];
+  for (const l of list ?? []) {
+    const c = map.get(l.id);
+    if (c?.deleted) continue;
+    if (c) {
+      if (inRange(c.payload.day)) out.push({ ...c.payload, sync: markOf(c.item) });
+    } else out.push(l);
+  }
+  for (const [id, c] of map) {
+    if (!c.deleted && inRange(c.payload.day) && !out.some((l) => l.id === id)) {
+      out.push({ ...c.payload, created_at: c.item.changedAt, sync: markOf(c.item) });
+    }
+  }
+  return out;
+}
+
+export function overlayWater(
+  list: WaterLog[] | undefined,
+  items: OutboxItem[],
+  inRange: (day: string) => boolean,
+) {
+  const map = changes<WaterLog>(items, 'save_water', 'delete_water');
+  const out: (WaterLog & SyncMark)[] = (list ?? []).filter((w) => !map.get(w.id)?.deleted);
+  for (const [id, c] of map) {
+    if (!c.deleted && inRange(c.payload.day) && !out.some((w) => w.id === id))
+      out.push({ ...c.payload, sync: markOf(c.item) });
+  }
+  return out;
+}
+
+/** Favourites added or removed offline (payload carries the food). */
+export function overlayFavorites(list: Food[] | undefined, items: OutboxItem[]): Food[] {
+  let out = [...(list ?? [])];
+  for (const i of items.filter((x) => x.kind === 'set_favorite')) {
+    const p = i.payload as { favorite: boolean; food: Food };
+    out = out.filter((f) => f.id !== i.entityId);
+    if (p.favorite) out.unshift(p.food);
+  }
   return out;
 }

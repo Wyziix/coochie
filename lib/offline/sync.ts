@@ -1,6 +1,15 @@
 import { onlineManager, type QueryClient } from '@tanstack/react-query';
 
 import { saveRestSetting, upsertCustomExercise, type ExerciseInput } from '@/lib/api/exercises';
+import {
+  deleteFoodLogAt,
+  deleteWaterLogAt,
+  saveFoodLog,
+  saveWaterLog,
+  setFoodFavorite,
+  type FoodLog,
+  type WaterLog,
+} from '@/lib/api/nutrition';
 import { deleteTemplateAt, saveTemplate, type TemplatePayload } from '@/lib/api/templates';
 import { deleteWorkoutAt, saveWorkout, type SavePayload } from '@/lib/api/workouts';
 import { describeError } from '@/lib/errors';
@@ -49,6 +58,21 @@ async function send(item: OutboxItem): Promise<void> {
       return;
     case 'save_rest':
       return saveRestSetting(item.entityId, (item.payload as { seconds: number }).seconds);
+    case 'save_food_log':
+      await saveFoodLog(item.payload as FoodLog, item.changedAt);
+      return;
+    case 'delete_food_log':
+      await deleteFoodLogAt(item.entityId, item.changedAt);
+      return;
+    case 'save_water':
+      await saveWaterLog(item.payload as WaterLog, item.changedAt);
+      return;
+    case 'delete_water':
+      await deleteWaterLogAt(item.entityId, item.changedAt);
+      return;
+    case 'set_favorite':
+      await setFoodFavorite(item.entityId, (item.payload as { favorite: boolean }).favorite);
+      return;
   }
 }
 
@@ -76,6 +100,11 @@ const invalidates: Record<OutboxKind, string[][]> = {
   delete_template: [['templates']],
   save_exercise: [['exercises']],
   save_rest: [['rest-settings']],
+  save_food_log: [['nutrition']],
+  delete_food_log: [['nutrition']],
+  save_water: [['nutrition']],
+  delete_water: [['nutrition']],
+  set_favorite: [['nutrition', 'favorites']],
 };
 
 export type SyncResult = { sent: number; failed: number; left: number };

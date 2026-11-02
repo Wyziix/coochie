@@ -94,6 +94,13 @@ const signedInRoutes = [
   '/admin/badges',
   '/admin/challenges',
   '/admin/reports',
+  '/nutrition',
+  '/nutrition/add',
+  '/nutrition/scan',
+  '/nutrition/new-food',
+  '/nutrition/week',
+  '/nutrition/targets',
+  '/admin/foods',
 ];
 
 describe('every screen renders', () => {
