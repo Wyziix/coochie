@@ -34,10 +34,22 @@ const sections: Section[] = [
     href: '/admin/ai',
   },
   {
-    title: 'Moderation',
-    description: 'Flagged workouts, bans, leaderboard hiding',
+    title: 'Flagged workouts',
+    description: 'Suspicious workouts waiting for review',
     icon: 'shield-outline',
-    stage: 8,
+    href: '/admin/flagged',
+  },
+  {
+    title: 'Users',
+    description: 'Points, levels, leaderboard bans and hiding',
+    icon: 'people-outline',
+    href: '/admin/users',
+  },
+  {
+    title: 'Points',
+    description: 'Point values, caps, levels and anti-cheat limits',
+    icon: 'star-outline',
+    href: '/admin/points',
   },
   {
     title: 'Community',
@@ -45,7 +57,6 @@ const sections: Section[] = [
     icon: 'trophy-outline',
     stage: 9,
   },
-  { title: 'Users', description: 'User list with search', icon: 'people-outline', stage: 9 },
 ];
 
 export default function AdminHomeScreen() {

@@ -178,6 +178,19 @@ select tablename, rowsecurity from pg_tables where tablename in ('user_programs'
 2. Deploy the functions (adds `generate-plan` and `coach`): `npm run deploy:functions`.
 3. Redeploy the web app: `npm run deploy:web`.
 
+### Stage 8 migration (points and ranking)
+
+1. Run `20261110000000_points_ranking.sql` (safe to run twice). It adds `points_settings`, `points_ledger`, `workout_flags`, `user_moderation`, `profiles.leaderboard_hidden`, the `leaderboard_totals` view, levels, the admin functions, hooks points into `after_workout_change()`, and gives existing workouts their points.
+
+```sql
+select workout_points, weekly_goal_points, daily_cap, flag_max_workouts_per_day from public.points_settings;  -- 50, 100, 300, 3
+select user_id, sum(points) from public.points_ledger group by 1;  -- one row per user who has workouts
+select public.level_for(0) ->> 'name';  -- Rookie I
+```
+
+2. No Edge Function changes.
+3. Redeploy the web app: `npm run deploy:web`.
+
 ## 6. Enable the custom access token hook
 
 This puts `user_role` (`user` / `admin`) into every login token.
@@ -330,4 +343,18 @@ Apply new migrations first (and `npm run deploy:functions` if `supabase/function
   ```sql
   select created_at, function, status, input_tokens, cache_read_tokens, output_tokens, cost_usd, attempts, error
   from public.ai_usage where function in ('plan', 'coach') order by created_at desc limit 20;
+  ```
+
+## 13. Points, levels and leaderboards
+
+- **Values:** Admin → Points (per workout, per week, levels, anti-cheat). Saving recalculates everyone's points and is logged.
+- **Flagged workouts:** Admin → Flagged workouts. Approve gives the points, reject gives none. The user only sees "Under review".
+- **Users:** Admin → Users: ban from leaderboards or hide a user; "Why these points?" shows the ledger.
+- **Weeks** start Monday 00:00 Europe/Madrid (`points_settings.timezone`).
+- **Why someone has their points:**
+  ```sql
+  select l.day, l.reason, l.points, w.name, l.details
+  from public.points_ledger l left join public.workouts w on w.id = l.workout_id
+  join public.profiles p on p.id = l.user_id
+  where p.username = 'gleb' order by l.earned_at desc limit 30;
   ```

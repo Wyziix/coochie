@@ -25,7 +25,7 @@ App name: **LightweightBaby** · bundle ID / package `com.lightweightbaby.app` �
 | 5     | Offline mode and sync                | Done   |
 | 6     | Claude feedback                      | Done   |
 | 7     | AI plan generator and coach chat     | Done   |
-| 8     | Points and ranking                   | –      |
+| 8     | Points and ranking                   | Done   |
 | 9     | Social                               | –      |
 | 10    | Nutrition                            | –      |
 | 11    | Health sync, export, settings        | –      |
@@ -368,6 +368,48 @@ Checks: typecheck, lint, prettier, 267 Jest tests (plan form → preview → sav
 - Check the first real plan and coach calls in `ai_usage` (tokens and cost); a plan is about 3,000-4,000 input tokens and up to 1,500 output, about $0.001
 - A 6-day plan with many exercises can hit the 1,500-token cap; it's then retried once with "keep every text short", and the cap can be raised in Admin → AI
 - Plan generation needs a connection; saved programs work offline
+
+## Stage 8 – Points and ranking
+
+Built:
+
+- **Points only on the server**, inside `after_workout_change()` (called by `save_workout` / `delete_workout`, so offline workouts get points when they sync). `recompute_points()` rebuilds the user's `points_ledger` from their workouts each time, with a unique key per (reason, source), so re-syncs and edits can't double count and deleting a workout removes its points (and a weekly bonus it completed). Every row has a reason (`workout`, `sets`, `pr`, `daily_cap`, `weekly_goal`, `streak`), a source (workout id or week start), the day it counts for (Madrid) and details (sets counted, PR exercises, goal, streak weeks). Users read their own ledger (Points screen); admins read anyone's
+- **Point table** (all in `points_settings`, editable in Admin → Points, logged with the old values; saving recalculates everyone):
+
+  | What                                      | Points                       | Why                                                                                                                          |
+  | ----------------------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+  | Workout with at least 3 working sets      | 50                           | Showing up is most of it; same for every lifter                                                                              |
+  | Each working set                          | 1, max 25 per workout        | Rewards a real session, not weight; capped so marathon sessions don't win                                                    |
+  | New best weight on an exercise            | 15, max 3 per workout        | Compared with your own history, so 25 → 27.5 kg counts the same as 140 → 142.5 kg; first time on an exercise is the baseline |
+  | Planned days hit in a week (2-6)          | 100                          | The biggest single reward: consistency                                                                                       |
+  | Streak (weeks in a row with the goal hit) | +20 per extra week, max +100 | Keeps people coming back                                                                                                     |
+  | Daily cap                                 | 300                          | Stops a binge day from beating a steady week                                                                                 |
+
+  A typical week of 3 sessions is about 250 + 100 (+ streak) points whatever the weights; total weight lifted is never used, so a lighter lifter training as regularly scores the same (tested: 25 kg and 60 kg bench with the same sessions both get 277)
+
+- **Anti-cheat flags** (`workout_flags`, checked on every save): heavier than believable (bodyweight × muscle ratio × equipment factor, e.g. curl 1.2 × bodyweight, max 600 kg), more than 30% and 15 kg over the previous best, under 10 minutes, more than 3 workouts in a day, logged more than 7 days after it happened. Flagged workouts get no points (and don't count as previous bests) until an admin approves. Editing keeps an approval if the reasons didn't change; new reasons send it back for review. Users see only "Under review" (rejected: "No points for this workout")
+- **Admin → Flagged workouts** (reasons and sets, approve → points, reject → none), **Admin → Users** (search, points, level, ban from leaderboards, hide, "Why these points?" ledger), **Admin → Points** (all values). Every action is in `admin_actions`
+- **Levels 1-50**: level L needs `100 × (L−1)^1.6` points (level 2 at 100, level 10 at ~3,400 ≈ 2 months, level 50 at ~50,600 ≈ 2 years of steady training). Names in tiers of five: Rookie, Regular, Grinder, Athlete, Iron, Steel, Titan, Champion, Legend, Lightweight Baby (I-V). Level card with a progress bar on Home and Profile (opens the points history); a level-up moment after a workout on the same screen as the PR trophy, with the points earned
+- **Leaderboards** (Ranking tab): week, month, all time. Only username, avatar, level and points. My rank is always shown, also outside the top 50 and when I hid myself ("you'd be #3"). Users banned or hidden by an admin, users who hid themselves, and users without a username aren't listed. Backed by the materialized view `leaderboard_totals`, refreshed when points changed or a new week/month started; weeks start Monday 00:00 Europe/Madrid. Space for the friends board (Stage 9)
+- **Profile → Privacy → "Hide me from public leaderboards"**
+- **Offline**: boards and my points are kept on the device; offline the board shows "Offline, last updated X". Workouts waiting to sync say points are added after sync
+- Existing workouts got their points when the migration ran (not flagged)
+
+Checks: typecheck, lint, prettier, 285 Jest tests (boards per period, my rank outside the top, hidden and removed, offline note, level card, points history, level-up after finishing, workout points / under review / rejected wording, hide toggle, admin flagged approve, ban after confirm, ledger, settings), 46 Edge Function tests, DB checks (points per workout, PR only over earlier bests, weekly goal and streak, re-sync twice and edit without double counting, delete removes points and the week bonus, same points for a lighter lifter, daily cap row, settings logged and range-checked, every flag reason, "too many today" cleared after a delete, offline sync 3 days later not flagged, users can't read flags or write points, admin review and logging, approval kept or reset on edit, levels, Madrid weeks, leaderboard contents and keys, hide, ban, hide by admin). Browser test of the production build at 390 px and 1440 px: level card, weekly and all-time boards, offline note, level-up, workout points, under review without reasons, points history, hide toggle, admin flagged/users/points.
+
+### Decisions
+
+- Full rebuild of one user's ledger per workout change instead of incremental updates: simple, always consistent, a few hundred rows per user
+- PRs for points are computed from history at that time (heavier than every earlier counted set), not from `personal_records`, so beating a record later doesn't take earlier PR points away
+- Bans and hiding live in `user_moderation` (admins only); "hide me" is a profile column the user controls
+- Anti-cheat thresholds apply to saves from now on; changing point values recalculates everyone
+- No Edge Function: everything is in the database
+
+### Known issues / to check
+
+- The weekly goal uses the planned days from the profile now, also for past weeks
+- Bodyweight for the weight check is the current profile value (100 kg if unknown)
+- Leaderboard refresh happens on the first read after a change; with many users a scheduled refresh would be better
 
 ## Planned for Stage 13 (polish)
 

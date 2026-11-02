@@ -2,6 +2,8 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import { HideFromBoards } from '@/components/points/HideFromBoards';
+import { LevelCard } from '@/components/points/LevelCard';
 import { InfoRow } from '@/components/profile/InfoRow';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Avatar, Button, Card, Header, Screen, Text } from '@/components/ui';
@@ -62,6 +64,8 @@ export default function ProfileScreen() {
         </View>
       </View>
 
+      <LevelCard />
+
       <Button
         title="Edit profile"
         variant="secondary"
@@ -93,6 +97,7 @@ export default function ProfileScreen() {
 
       <Card>
         <Text variant="heading">Privacy</Text>
+        <HideFromBoards profile={profile} />
         <Button title="Photo lock" variant="secondary" onPress={() => router.push('/photo-lock')} />
       </Card>
 

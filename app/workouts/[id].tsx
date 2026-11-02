@@ -4,6 +4,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { WorkoutFeedbackCard } from '@/components/ai/WorkoutFeedbackCard';
 import { BottomSheet, Button, Card, ErrorState, Input, LoadingState, Text } from '@/components/ui';
+import { WorkoutPointsCard } from '@/components/points/WorkoutPointsCard';
 import { useProfile } from '@/hooks/useProfile';
 import { useTheme } from '@/hooks/useTheme';
 import type { SyncMark } from '@/lib/offline/overlay';
@@ -163,6 +164,8 @@ export default function WorkoutSummaryScreen() {
           ))}
         </Card>
       ) : null}
+
+      <WorkoutPointsCard workoutId={workout.id} waitingToSync={sync !== undefined} />
 
       <WorkoutFeedbackCard
         workoutId={workout.id}

@@ -20,6 +20,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { useSaveWorkout } from '@/hooks/useWorkouts';
+import { fetchWorkoutPoints } from '@/lib/api/points';
 import { fetchWorkoutRecords } from '@/lib/api/progress';
 import { confirm } from '@/lib/confirm';
 import { describeError } from '@/lib/errors';
@@ -83,15 +84,26 @@ export default function ActiveWorkoutScreen() {
         router.replace({ pathname: '/workouts/[id]', params: { id: saved.id, finished: '1' } });
         return;
       }
-      // The server computed records while saving; ask it what's new.
-      const records = await queryClient
-        .fetchQuery({
-          queryKey: ['workouts', 'records', saved.id],
-          queryFn: () => fetchWorkoutRecords(saved.id),
-        })
-        .catch(() => []);
+      // The server computed records and points while saving; ask what's new.
+      const [records, points] = await Promise.all([
+        queryClient
+          .fetchQuery({
+            queryKey: ['workouts', 'records', saved.id],
+            queryFn: () => fetchWorkoutRecords(saved.id),
+          })
+          .catch(() => []),
+        queryClient
+          .fetchQuery({
+            queryKey: ['points', 'workout', saved.id],
+            queryFn: () => fetchWorkoutPoints(saved.id),
+          })
+          .catch(() => null),
+      ]);
+      queryClient.invalidateQueries({ queryKey: ['points', 'me'] });
+      queryClient.invalidateQueries({ queryKey: ['points', 'board'] });
+      const levelUp = !!points && points.level_after.level > points.level_before.level;
       router.replace(
-        records.length > 0
+        records.length > 0 || levelUp
           ? { pathname: '/workouts/celebrate', params: { id: saved.id } }
           : { pathname: '/workouts/[id]', params: { id: saved.id, finished: '1' } },
       );

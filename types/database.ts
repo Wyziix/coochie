@@ -19,6 +19,7 @@ export type Database = {
           bodyweight_kg: number | null;
           height_cm: number | null;
           onboarding_completed_at: string | null;
+          leaderboard_hidden: boolean;
           role: Database['public']['Enums']['app_role'];
           created_at: string;
           updated_at: string;
@@ -35,6 +36,7 @@ export type Database = {
           bodyweight_kg?: number | null;
           height_cm?: number | null;
           onboarding_completed_at?: string | null;
+          leaderboard_hidden?: boolean;
           role?: Database['public']['Enums']['app_role'];
           created_at?: string;
           updated_at?: string;
@@ -51,6 +53,7 @@ export type Database = {
           bodyweight_kg?: number | null;
           height_cm?: number | null;
           onboarding_completed_at?: string | null;
+          leaderboard_hidden?: boolean;
           role?: Database['public']['Enums']['app_role'];
           created_at?: string;
           updated_at?: string;
@@ -280,6 +283,24 @@ export type Database = {
         Update: never;
         Relationships: [];
       };
+      points_ledger: {
+        Row: {
+          id: number;
+          user_id: string;
+          points: number;
+          reason: string;
+          source_type: string;
+          source_id: string;
+          workout_id: string | null;
+          earned_at: string;
+          day: string;
+          details: Json;
+          created_at: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
       coach_messages: {
         Row: {
           id: string;
@@ -476,6 +497,26 @@ export type Database = {
       };
       admin_ai_feature_overrides: { Args: Record<string, never>; Returns: Json };
       save_ai_plan: { Args: { p_program: Json; p_days: Json }; Returns: string };
+      my_points: { Args: Record<string, never>; Returns: Json };
+      points_rules: { Args: Record<string, never>; Returns: Json };
+      leaderboard: { Args: { p_period?: string; p_limit?: number }; Returns: Json };
+      workout_points: { Args: { p_workout: string }; Returns: Json };
+      level_for: { Args: { p_points: number }; Returns: Json };
+      admin_points_settings: { Args: Record<string, never>; Returns: Json };
+      admin_update_points_settings: { Args: { p_changes: Json }; Returns: Json };
+      admin_flagged_workouts: { Args: { p_status?: string }; Returns: Json };
+      admin_review_workout: { Args: { p_workout: string; p_approve: boolean }; Returns: undefined };
+      admin_users: { Args: { p_query?: string }; Returns: Json };
+      admin_set_user_moderation: {
+        Args: {
+          p_user: string;
+          p_leaderboard_banned: boolean;
+          p_hidden: boolean;
+          p_note?: string | null;
+        };
+        Returns: undefined;
+      };
+      admin_user_ledger: { Args: { p_user: string }; Returns: Json };
       delete_program: { Args: { p_id: string }; Returns: undefined };
       admin_find_users: { Args: { p_query: string }; Returns: Json };
       admin_ai_usage: { Args: { p_days?: number }; Returns: Json };

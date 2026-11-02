@@ -55,6 +55,7 @@ export function fakeProfile(overrides: Partial<Profile> = {}): Profile {
     bodyweight_kg: null,
     height_cm: null,
     onboarding_completed_at: null,
+    leaderboard_hidden: false,
     role: 'user',
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
@@ -83,6 +84,7 @@ export function resetBackend({
   // The auth store is a module-level singleton; start each test like a fresh app launch.
   useAuthStore.setState({ status: 'loading', session: null });
   resetAi();
+  resetPoints();
   // Fresh device: no offline data, nothing queued, online.
   jest.requireMock('@/lib/offline/storage').__memory.clear();
   useOutboxStore.setState({ userId: null, items: [], loaded: false, sending: [] });
@@ -1010,4 +1012,218 @@ export const aiMock = {
     aiState.reports = [report, ...aiState.reports];
     return { report };
   }),
+};
+
+// --- Stage 8: points and leaderboards (computed on the server; faked here) -----
+const level = (points: number, n = 1, name = 'Rookie I', min = 0, next: number | null = 100) => ({
+  level: n,
+  name,
+  min_points: min,
+  next_points: next,
+  points,
+});
+
+export const pointsState = {
+  me: { total: 64, week: 64, month: 64, level: level(64), under_review: 0 },
+  boards: {} as Record<string, unknown>,
+  workouts: new Map<string, unknown>(),
+  ledger: [] as unknown[],
+  settings: {
+    workout_points: 50,
+    min_working_sets: 3,
+    set_points: 1,
+    set_points_cap: 25,
+    pr_points: 15,
+    pr_cap: 3,
+    daily_cap: 300,
+    weekly_goal_points: 100,
+    goal_min_days: 2,
+    goal_max_days: 6,
+    streak_points: 20,
+    streak_cap_weeks: 5,
+    level_base: 100,
+    level_exponent: 1.6,
+    flag_min_minutes: 10,
+    flag_max_workouts_per_day: 3,
+    flag_backdate_days: 7,
+    flag_jump_pct: 30,
+    flag_jump_min_kg: 15,
+    flag_max_set_kg: 600,
+    flag_default_bodyweight_kg: 100,
+    weight_ratios: {},
+    equipment_factors: {},
+    timezone: 'Europe/Madrid',
+    updated_at: '',
+  },
+  flagged: [] as {
+    workout_id: string;
+    status: string;
+    reasons: unknown[];
+    username: string;
+    name: string;
+    [k: string]: unknown;
+  }[],
+  users: [] as {
+    user_id: string;
+    username: string;
+    leaderboard_banned: boolean;
+    hidden: boolean;
+    [k: string]: unknown;
+  }[],
+};
+
+export const sampleBoard = (period = 'week') => ({
+  period,
+  week_start: '2026-11-02',
+  month_start: '2026-11-01',
+  refreshed_at: '2026-11-02T10:00:00Z',
+  entries: [
+    { rank: 1, username: 'anna', avatar_url: null, level: 4, points: 420, is_me: false },
+    { rank: 2, username: 'gleb', avatar_url: null, level: 3, points: 310, is_me: true },
+  ],
+  me: {
+    rank: 2,
+    points: 310,
+    level: 3,
+    username: 'gleb',
+    avatar_url: null,
+    hidden: false,
+    removed: false,
+  },
+});
+
+export const sampleWorkoutPoints = (overrides: Record<string, unknown> = {}) => ({
+  review: null,
+  points: 69,
+  items: [
+    { reason: 'workout', points: 50, details: {} },
+    { reason: 'sets', points: 4, details: { working_sets: 4 } },
+    { reason: 'pr', points: 15, details: { exercises: ['Bench Press (Barbell)'] } },
+  ],
+  level_before: level(40),
+  level_after: level(109, 2, 'Rookie II', 100, 303),
+  ...overrides,
+});
+
+export function resetPoints() {
+  pointsState.me = { total: 64, week: 64, month: 64, level: level(64), under_review: 0 };
+  pointsState.boards = {
+    week: sampleBoard('week'),
+    month: sampleBoard('month'),
+    all: sampleBoard('all'),
+  };
+  pointsState.workouts = new Map();
+  pointsState.ledger = [
+    {
+      id: 2,
+      points: 4,
+      reason: 'sets',
+      source_type: 'workout',
+      source_id: 'w-1',
+      workout_id: 'w-1',
+      earned_at: '2026-11-02T10:00:00Z',
+      day: '2026-11-02',
+      details: { working_sets: 4 },
+    },
+    {
+      id: 1,
+      points: 50,
+      reason: 'workout',
+      source_type: 'workout',
+      source_id: 'w-1',
+      workout_id: 'w-1',
+      earned_at: '2026-11-02T10:00:00Z',
+      day: '2026-11-02',
+      details: {},
+    },
+  ];
+  pointsState.flagged = [
+    {
+      workout_id: 'w-flag',
+      status: 'pending',
+      reasons: [
+        { reason: 'unrealistic_weight', exercise: 'Bicep Curl', weight_kg: 500, limit_kg: 66 },
+      ],
+      flagged_at: '',
+      reviewed_at: null,
+      user_id: 'user-2',
+      username: 'anna',
+      display_name: 'Anna',
+      bodyweight_kg: 55,
+      name: 'Arms',
+      started_at: '2026-11-01T10:00:00Z',
+      duration_seconds: 3000,
+      logged_at: '',
+      sets: [
+        {
+          exercise: 'Bicep Curl',
+          set_type: 'normal',
+          weight_kg: 500,
+          reps: 8,
+          duration_seconds: null,
+          distance_m: null,
+        },
+      ],
+    },
+  ];
+  pointsState.users = [
+    {
+      user_id: 'user-2',
+      username: 'anna',
+      display_name: 'Anna',
+      email: 'anna@test.dev',
+      avatar_url: null,
+      points: 420,
+      level: 4,
+      self_hidden: false,
+      leaderboard_banned: false,
+      hidden: false,
+      note: null,
+      pending_flags: 1,
+    },
+  ];
+}
+resetPoints();
+
+export const pointsMock = {
+  fetchMyPoints: jest.fn(async () => ({ ...pointsState.me })),
+  fetchPointsRules: jest.fn(async () => ({ ...pointsState.settings })),
+  fetchLeaderboard: jest.fn(async (period: string) =>
+    JSON.parse(JSON.stringify(pointsState.boards[period])),
+  ),
+  fetchWorkoutPoints: jest.fn(async (id: string) => pointsState.workouts.get(id) ?? null),
+  fetchMyLedger: jest.fn(async () => [...pointsState.ledger]),
+  fetchPointsSettings: jest.fn(async () => ({ ...pointsState.settings })),
+  updatePointsSettings: jest.fn(async (changes: Partial<typeof pointsState.settings>) => {
+    pointsState.settings = { ...pointsState.settings, ...changes };
+    return { ...pointsState.settings };
+  }),
+  fetchFlaggedWorkouts: jest.fn(async (status: string) =>
+    pointsState.flagged.filter((f) => status === 'all' || f.status === status),
+  ),
+  reviewWorkout: jest.fn(async (id: string, approve: boolean) => {
+    const f = pointsState.flagged.find((x) => x.workout_id === id);
+    if (f) f.status = approve ? 'approved' : 'rejected';
+    return null;
+  }),
+  fetchAdminUsers: jest.fn(async () => pointsState.users.map((u) => ({ ...u }))),
+  setUserModeration: jest.fn(
+    async (id: string, m: { leaderboard_banned: boolean; hidden: boolean }) => {
+      const u = pointsState.users.find((x) => x.user_id === id);
+      if (u) Object.assign(u, m);
+      return null;
+    },
+  ),
+  fetchUserLedger: jest.fn(async () => [
+    {
+      points: 50,
+      reason: 'workout',
+      source_type: 'workout',
+      source_id: 'w',
+      workout: 'Push',
+      earned_at: '',
+      day: '2026-11-01',
+      details: {},
+    },
+  ]),
 };

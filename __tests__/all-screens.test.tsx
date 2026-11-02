@@ -78,6 +78,10 @@ const signedInRoutes = [
   '/plans/new',
   '/plans/preview',
   '/plans/edit-day',
+  '/points',
+  '/admin/flagged',
+  '/admin/users',
+  '/admin/points',
 ];
 
 describe('every screen renders', () => {
